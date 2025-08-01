@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>AI Meeting-Note Tools – Integration Matrix</title>
+<style>
+  body{font-family:Arial,Helvetica,sans-serif;margin:20px}
+  table{border-collapse:collapse;width:100%}
+  th,td{border:1px solid #ccc;padding:8px;vertical-align:top}
+  th{background:#f2f2f2;text-align:left}
+  ul{margin:0;padding-left:18px}
+</style>
+</head>
+<body>
+<table>
+  <thead>
+    <tr>
+      <th>Tool</th>
+      <th>Description</th>
+      <th>API / Docs</th>
+      <th>Webhooks</th>
+      <th>Ease</th>
+      <th>Steps to Access Transcripts</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Fireflies.ai</td>
+      <td>Sales & team call recorder with AI summaries and analytics</td>
+      <td>GraphQL endpoint<br>docs.fireflies.ai</td>
+      <td>Yes – “transcription_complete”</td>
+      <td>Easy</td>
+      <td>
+        <ul>
+          <li>Admin → Integrations → API → generate key</li>
+          <li>POST auth header, query <code>transcript(id)</code></li>
+          <li>(Optional) add webhook URL for instant push</li>
+        </ul>
+      </td>
+    </tr>
+    <tr>
+      <td>tl;dv</td>
+      <td>Multilingual recorder that creates clips and CRM notes</td>
+      <td>REST v1alpha1<br>doc.tldv.io</td>
+      <td>Yes</td>
+      <td>Easy</td>
+      <td>
+        <ul>
+          <li>Business plan → Settings → API token</li>
+          <li><code>GET /meetings/{id}/transcript</code></li>
+          <li>Enable webhook to push on meeting end</li>
+        </ul>
+      </td>
+    </tr>
+    <tr>
+      <td>Chorus (ZoomInfo)</td>
+      <td>Conversation-intelligence for sales coaching</td>
+      <td>REST&nbsp;API<br>api-docs.chorus.ai</td>
+      <td>Yes</td>
+      <td>Medium</td>
+      <td>
+        <ul>
+          <li>Admin generates API key in Chorus settings</li>
+          <li><code>GET /recordings/{id}/transcript</code></li>
+          <li>Create webhook for “recording_processed”</li>
+        </ul>
+      </td>
+    </tr>
+    <tr>
+      <td>Gong</td>
+      <td>Full revenue-intelligence platform</td>
+      <td>REST + CRM APIs<br>api.gong.io</td>
+      <td>Yes</td>
+      <td>Medium</td>
+      <td>
+        <ul>
+          <li>Company Settings → API → create key & secret</li>
+          <li><code>GET /calls/{id}/transcript</code> (3 req/s)</li>
+          <li>Add webhook for new call or deal-event</li>
+        </ul>
+      </td>
+    </tr>
+    <tr>
+      <td>Clari Copilot</td>
+      <td>Real-time sales call assistant within Clari suite</td>
+      <td>REST API<br>api-doc.copilot.clari.com</td>
+      <td>No (poll only)</td>
+      <td>Moderate</td>
+      <td>
+        <ul>
+          <li>Enterprise plan → Integrations → key + password</li>
+          <li><code>GET /conversations/{id}/transcript</code></li>
+          <li>Schedule polling job to check processing status</li>
+        </ul>
+      </td>
+    </tr>
+    <tr>
+      <td>Avoma</td>
+      <td>AI meeting assistant with coaching & deal alerts</td>
+      <td>REST API<br>dev694.avoma.com</td>
+      <td>Yes</td>
+      <td>Easy</td>
+      <td>
+        <ul>
+          <li>Settings → API keys → copy token</li>
+          <li><code>GET /transcriptions/{id}</code></li>
+          <li>Generate webhook URL per workspace if preferred</li>
+        </ul>
+      </td>
+    </tr>
+    <tr>
+      <td>Sembly.ai</td>
+      <td>Bot-based notetaker that pushes notes automatically</td>
+      <td>Outbound HTTPS push only</td>
+      <td>Yes</td>
+      <td>Easy</td>
+      <td>
+        <ul>
+          <li>Workspace → Automations → add outbound webhook</li>
+          <li>Select “Transcription” content type</li>
+          <li>Sembly POSTs JSON to your endpoint after each call</li>
+        </ul>
+      </td>
+    </tr>
+    <tr>
+      <td>Granola</td>
+      <td>Desktop AI notepad that enhances your own notes</td>
+      <td>None</td>
+      <td>Zapier only</td>
+      <td>Not&nbsp;possible</td>
+      <td>
+        <ul>
+          <li>Enable Zapier integration in app settings</li>
+          <li>Use trigger “Note added to folder” to receive text</li>
+        </ul>
+      </td>
+    </tr>
+    <tr>
+      <td>Otter.ai</td>
+      <td>Market-leading real-time transcription tool</td>
+      <td>No public API</td>
+      <td>Zapier only</td>
+      <td>Not&nbsp;possible</td>
+      <td>
+        <ul>
+          <li>Set up Zapier “New Otter Note” trigger</li>
+          <li>Export transcript through Zapier or manual download</li>
+        </ul>
+      </td>
+    </tr>
+    <tr>
+      <td>Fathom</td>
+      <td>Free AI notetaker focused on rapid summaries</td>
+      <td>No public API</td>
+      <td>Zapier only</td>
+      <td>Not&nbsp;possible</td>
+      <td>
+        <ul>
+          <li>Connect Fathom Team Edition to Zapier</li>
+          <li>Use “New Meeting Summary” trigger to capture text</li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+</body>
+</html>
