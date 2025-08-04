@@ -1,0 +1,6 @@
+.DS_Store
+.env.example
+node_modules/
+tasks/proposal-email-steve.md
+tasks/prd-fireflies-sales-intelligence.html
+tasks/proposal-email-steve-v2.md
