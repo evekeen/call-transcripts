@@ -24,6 +24,7 @@ A sales intelligence tool that integrates with multiple call recording platforms
 - As a sales rep, I want all my call transcripts automatically organized by client so I don't have to manually categorize them
 - As a sales rep, I want to query "What pain points did Acme Corp mention in our last 3 calls?" before a follow-up meeting
 - As a sales rep, I want the system to capture every call transcript without me having to remember to sync
+- As a sales rep, I want to see token costs for my queries so I can use the system efficiently
 
 ### Sales Manager
 - As a sales manager, I want to see all transcripts from my team's meetings with a client, even if I've never personally met with them, so I can prepare effectively for important closing calls
@@ -57,26 +58,33 @@ A sales intelligence tool that integrates with multiple call recording platforms
    - FR17: System must maintain transcript metadata (date, attendees, meeting type, platform source)
 
 4. **Query Interface**
-   - FR18: System must provide query endpoint that accepts natural language questions
-   - FR19: System must route queries to appropriate client knowledge base
+   - FR18: System must provide Lambda endpoint accepting natural language questions
+   - FR19: System must route queries to appropriate client knowledge base in Supabase
    - FR20: System must return relevant transcript excerpts with metadata
-   - FR21: System must support both RAG and direct LLM memory approaches
+   - FR21: System must support Bedrock (Claude) and OpenAI (GPT-4) for queries
    - FR22: System must include all team members' transcripts in query results
+   - FR23: System must track token usage via Paid.ai for cost management
 
 5. **Data Persistence**
-   - FR23: System must persist full transcript data in searchable format
-   - FR24: System must maintain audit trail of transcript processing
-   - FR25: System must handle system restarts without data loss
-   - FR26: System must track which platform each transcript originated from
+   - FR24: System must persist full transcript data in Supabase with searchable format
+   - FR25: System must maintain audit trail in CloudWatch logs
+   - FR26: System must handle Lambda cold starts and restarts gracefully
+   - FR27: System must track platform source and token usage per transcript
+
+6. **Cost Management**
+   - FR28: System must track LLM token usage via Paid.ai integration
+   - FR29: System must provide cost visibility per account/query
+   - FR30: System must implement token usage limits and alerts
 
 ## Non-Goals (Out of Scope)
 
 - CRM system integrations (Salesforce, HubSpot)
 - Advanced analytics dashboard (initial version focuses on querying)
-- Real-time call transcription (relies on Fireflies for transcription)
+- Real-time call transcription (relies on platform APIs)
 - Multi-tenant architecture (single organization focus initially)
 - Audio file storage or processing
 - Meeting scheduling or calendar integration
+- White-label recorder transcript processing (future phase)
 
 ## Technical Considerations
 
@@ -84,47 +92,54 @@ A sales intelligence tool that integrates with multiple call recording platforms
 - Each platform has different API structures and rate limits
 - Admin API keys required for organization-wide access
 - Platform-specific constraints:
-  - Gong: Enterprise-focused, robust API
-  - Clary: Enterprise customer actively using
-  - Fireflies: GraphQL endpoint, 50 requests/day on free plan
-  - Fathom & Otter: Research API capabilities
+  - Gong: REST API, 3 req/s limit, admin key access
+  - Clari: REST API, 10 req/s limit, org password access
+  - Fireflies: GraphQL, 50 req/day (free), Enterprise for admin access
 - Need abstraction layer to normalize across platforms
 
-**Technology Stack Options**:
-- **TypeScript**: Better for API integrations, strong typing, Node.js ecosystem
-- **Python**: Better for LLM integrations, RAG pipelines, data processing
+**Technology Stack (Based on WinRate's Existing Infrastructure)**:
+- **Frontend**: React + TypeScript with Tailwind/ShadCN, Zustand for state
+- **Backend**: Express on AWS Lambda (serverless)
+- **Database**: Supabase (Postgres) for transcript storage and metadata
+- **Infrastructure**: AWS CDK, Amplify, CloudWatch for monitoring
+- **Queue/Processing**: SQS → Lambda orchestration for transcript ingestion
+- **LLM Integration**: Bedrock (Claude) + OpenAI (GPT-4) for querying
+- **CI/CD**: GitHub Actions
+- **Cost Tracking**: Paid.ai integration for token usage monitoring
 
-**Architecture Suggestions**:
-- Multi-platform adapter pattern for different APIs
-- Account-centric data model (not user-centric)
-- Background job queue for transcript processing
-- Vector database for semantic search capabilities (if using RAG)
-- Caching layer to minimize API calls
-- Configuration system for grouping rules
-- Simple admin UI for API key management
+**Architecture Implementation**:
+- Multi-platform adapter pattern using TypeScript interfaces
+- SQS queues for each platform to handle rate limits
+- Lambda functions for webhook endpoints
+- Supabase for transcript storage with vector embeddings
+- Account association logic in dedicated Lambda
+- React admin UI for API credential management
+- Zustand store for real-time transcript updates
 
 **Rate Limiting Strategy**:
-- Implement exponential backoff
-- Cache frequently accessed data
-- Use webhooks when possible to reduce polling
-- Batch API requests efficiently
+- SQS with visibility timeout for exponential backoff
+- Lambda concurrency controls per platform
+- CloudWatch metrics for rate limit monitoring
+- Supabase caching layer for frequently accessed transcripts
 
 ## Success Metrics
 
 1. **Data Completeness**: 100% of available FULL transcripts captured across all platforms
 2. **API Efficiency**: Stay within daily rate limits while maintaining real-time updates
 3. **Query Relevance**: Users find transcript excerpts relevant to their queries >90% of the time
-4. **System Reliability**: <1% transcript processing failures
+4. **System Reliability**: <1% transcript processing failures (monitored via CloudWatch)
 5. **Response Time**: Query responses returned within 10 seconds
+6. **Cost Efficiency**: LLM token usage tracked via Paid.ai stays within budget
+7. **Processing Speed**: SQS → Lambda pipeline processes transcripts within 5 minutes
 
 ## Open Questions
 
-1. **Platform API Requirements**: What are the exact rate limits and admin API capabilities for each platform?
-2. **Integration Priority**: Confirm priority order: Gong → Clary → Fathom → Fireflies → Otter
-3. **LLM Integration**: Should we use OpenAI, Claude, or local models for query processing?
-4. **Deployment**: Cloud functions, containers, or dedicated servers?
-5. **Storage**: Vector database (Pinecone, Weaviate) vs traditional database with embeddings?
-6. **Authentication**: How should admin API keys be securely stored and managed?
-7. **Account Association**: How to improve domain-based account matching beyond current "not perfect" approach?
-8. **Data Retention**: How long should transcripts be stored? Any compliance requirements?
-9. **Engineering Resources**: Coordination between India-based team and US-based dev leadership
+1. **Supabase Configuration**: Optimal table structure for transcript storage and vector embeddings?
+2. **Lambda Sizing**: Memory/timeout configurations for transcript processing functions?
+3. **SQS Dead Letter Queues**: Retry strategy for failed transcript ingestions?
+4. **Bedrock vs OpenAI**: Which LLM performs better for transcript querying?
+5. **Paid.ai Thresholds**: Token usage limits and cost alerts configuration?
+6. **CloudWatch Dashboards**: Key metrics to monitor for each integration?
+7. **Account Association**: Enhance domain matching with ML model or rules engine?
+8. **Data Retention**: Supabase storage policies and archival strategy?
+9. **White-label Recorder**: Integration approach for WinRate's own call recorder?
