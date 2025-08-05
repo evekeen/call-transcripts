@@ -1,172 +1,375 @@
-# Fireflies Sales Intelligence Tool
+# Multi-Platform Sales Intelligence Tool
 
-A sales intelligence tool that integrates with Fireflies.ai to automatically organize call transcripts by client accounts and maintain searchable knowledge bases for sales preparation.
+A comprehensive sales intelligence system that automatically captures, processes, and organizes call transcripts from multiple platforms (Gong, Clari, Fireflies) to maintain searchable knowledge bases for sales preparation.
 
-## Features
+## 🚀 Features
 
-- 🔄 **Automatic Sync**: Pulls all transcripts from Fireflies.ai with rate limiting
-- 🏢 **Smart Client Grouping**: Groups transcripts by email domains, custom rules, or manual assignment
-- 🔍 **Intelligent Query**: Search and query transcript knowledge bases
-- 📊 **API & Webhooks**: REST API with webhook support for real-time updates
-- ⏰ **Scheduled Updates**: Automated syncing during business hours
+- 🔄 **Multi-Platform Integration**: Supports Gong, Clari, and Fireflies APIs
+- 🏢 **Smart Account Association**: Automatic client grouping using domain-based logic
+- 🔍 **Full-Text Search**: Advanced search across all transcripts and segments
+- 📊 **Webhook Support**: Real-time transcript processing via webhooks
+- ☁️ **Serverless Architecture**: AWS Lambda functions with SQS queues
+- 🛡️ **Security**: Row Level Security policies and audit trails
+- 📈 **Rate Limiting**: Respects platform-specific API limits
+- 🧪 **Comprehensive Testing**: 64+ unit tests with full coverage
 
-## Quick Start
+## 🏗️ Architecture
 
-### Prerequisites
+```
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│   Platform APIs │    │   AWS Lambda     │    │   Supabase DB   │
+│                 │    │                  │    │                 │
+│ • Gong          │───▶│ • Webhook        │───▶│ • Transcripts   │
+│ • Clari         │    │   Handlers       │    │ • Segments      │
+│ • Fireflies     │    │ • Transcript     │    │ • Accounts      │
+│                 │    │   Processor      │    │ • Full-text     │
+└─────────────────┘    └──────────────────┘    └─────────────────┘
+                                │                        │
+                       ┌──────────────────┐             │
+                       │   SQS Queues     │             │
+                       │                  │             │
+                       │ • Processing     │◀────────────┘
+                       │ • Dead Letter    │
+                       └──────────────────┘
+```
 
-- Node.js 18+ 
-- Fireflies.ai account with API access
-- API key from https://app.fireflies.ai/integrations
+## 📋 Prerequisites
 
-### Installation
+- **Node.js** 18+
+- **AWS CLI** configured with appropriate permissions
+- **Supabase** account and project
+- **Platform API Keys**:
+  - Gong: OAuth2 credentials
+  - Clari: Bearer token and org password
+  - Fireflies: GraphQL API key
+
+## 🛠️ Installation & Setup
+
+### 1. Clone and Install Dependencies
 
 ```bash
-# Clone and install dependencies
+git clone <repository-url>
 cd fireflies-sales-intelligence
 npm install
+```
 
-# Copy environment configuration
+### 2. Environment Configuration
+
+```bash
+# Copy the environment template
 cp .env.example .env
-
-# Edit .env with your Fireflies API key
-FIREFLIES_API_KEY=your_api_key_here
 ```
 
-### Development
+Edit `.env` with your credentials:
 
 ```bash
-# Start in development mode
-npm run dev
+# Supabase Configuration
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_KEY=your-service-key-here
 
-# Build for production
-npm run build
-npm start
+# Platform API Keys
+GONG_CLIENT_ID=your-gong-client-id
+GONG_CLIENT_SECRET=your-gong-client-secret
+GONG_WEBHOOK_SECRET=your-webhook-secret
+
+CLARI_API_TOKEN=your-clari-bearer-token
+CLARI_ORG_PASSWORD=your-org-password
+CLARI_WEBHOOK_SECRET=your-webhook-secret
+
+FIREFLIES_API_KEY=your-fireflies-graphql-key
+FIREFLIES_WEBHOOK_SECRET=your-webhook-secret
+
+# AWS Configuration (if deploying)
+AWS_REGION=us-east-1
+TRANSCRIPT_QUEUE_URL=https://sqs.region.amazonaws.com/account/queue-name
 ```
 
-## API Endpoints
+### 3. Database Setup
 
-### Sync Management
-- `POST /sync/full` - Start full transcript sync
-- `POST /sync/recent` - Sync recent transcripts (last 7 days)
-- `GET /sync/status` - Get sync status and API usage
-
-### Query Interface
-- `POST /query` - Query transcripts with natural language
-  ```json
-  {
-    "question": "What pain points did Acme Corp mention?",
-    "client_account_id": "optional-client-id",
-    "limit": 10
-  }
-  ```
-
-### Client Management
-- `GET /clients` - List all client accounts
-- `GET /clients/:id/transcripts` - Get transcripts for specific client
-
-### Webhooks
-- `POST /webhook/fireflies` - Receive Fireflies webhook notifications
-
-## Configuration
-
-### Environment Variables
+Create the Supabase database schema:
 
 ```bash
-FIREFLIES_API_KEY=your_fireflies_api_key_here
-DATABASE_PATH=./data/sales_intelligence.db
-PORT=3000
-LOG_LEVEL=info
-
-# Rate limiting (Fireflies free plan = 50 requests/day)
-POLL_INTERVAL_MINUTES=60
-MAX_REQUESTS_PER_DAY=45
-
-# Optional: LLM integration
-OPENAI_API_KEY=your_openai_key_here
+# Apply the database schema
+psql -h your-supabase-host -U postgres -d postgres -f src/database/schemas/transcript.sql
 ```
 
-### Client Grouping Rules
+Or copy the SQL from `src/database/schemas/transcript.ts` and run it in your Supabase SQL editor.
 
-The system supports three types of client grouping:
+### 4. AWS Infrastructure (Optional - for production)
 
-1. **Domain-based** (default): Groups by attendee email domains
-2. **Title patterns**: Groups by meeting title regex patterns  
-3. **Manual**: Manual transcript assignment
-
-## Architecture
-
-```
-src/
-├── api/           # REST API server
-├── config/        # Configuration management
-├── database/      # SQLite database layer
-├── scheduler/     # Cron jobs for auto-sync
-├── services/      # Business logic
-│   ├── fireflies.ts      # Fireflies API client
-│   ├── client-grouping.ts # Client assignment logic
-│   ├── sync.ts           # Transcript synchronization
-│   └── query.ts          # Query processing
-└── types/         # TypeScript interfaces
-```
-
-## Rate Limiting
-
-The system respects Fireflies API limits:
-- **Free Plan**: 50 requests/day (default: 45 to leave buffer)
-- **Pro Plan**: Higher limits (configure `MAX_REQUESTS_PER_DAY`)
-
-Strategies used:
-- API usage tracking in database
-- Exponential backoff on errors
-- Batch processing with delays
-- Webhook support to reduce polling
-
-## Development
+Deploy the AWS CDK stack:
 
 ```bash
-# Run tests
+# Install AWS CDK
+npm install -g aws-cdk
+
+# Bootstrap CDK (first time only)
+cd infrastructure
+cdk bootstrap
+
+# Deploy the stack
+cdk deploy GongIntegrationStack
+```
+
+## 🚀 Quick Start & Testing
+
+### 1. Run Unit Tests
+
+```bash
+# Run all tests
 npm test
 
-# Lint code
-npm run lint
+# Run tests with coverage
+npm run test:coverage
 
-# Type check
-npm run type-check
+# Run specific test suite
+npm test -- --testPathPattern=gongClient
 ```
 
-## Deployment
+### 2. Test Platform Integrations
 
-The application is designed for cloud deployment:
+```bash
+# Test Gong client
+node -e "
+const { GongClient } = require('./dist/src/integrations/gong/gongClient');
+const client = new GongClient();
+client.testConnection().then(result => console.log('Gong:', result));
+"
 
-- **Docker**: Containerized application
-- **Cloud Functions**: Serverless deployment
-- **VPS/Dedicated**: Traditional server deployment
+# Test Clari client
+node -e "
+const { ClariClient } = require('./dist/src/integrations/clari/clariClient');
+const client = new ClariClient();
+client.testConnection().then(result => console.log('Clari:', result));
+"
 
-Database persists to local SQLite file - use mounted volumes in containerized deployments.
+# Test Fireflies client
+node -e "
+const { FirefliesClient } = require('./dist/src/integrations/fireflies/firefliesClient');
+const client = new FirefliesClient();
+client.testConnection().then(result => console.log('Fireflies:', result));
+"
+```
 
-## Troubleshooting
+### 3. Test Database Connection
+
+```bash
+node -e "
+const { TranscriptRepository } = require('./dist/src/database/repositories/transcriptRepository');
+const repo = new TranscriptRepository();
+repo.getProcessingStats().then(stats => console.log('DB Stats:', stats));
+"
+```
+
+### 4. Test Webhook Endpoints (Local Development)
+
+```bash
+# Install serverless framework for local testing
+npm install -g serverless
+
+# Start local development server
+serverless offline start
+
+# Test webhook endpoints
+curl -X POST http://localhost:3000/webhook/gong \
+  -H "Content-Type: application/json" \
+  -d '{
+    "eventType": "CALL_PROCESSING_COMPLETED",
+    "callId": "test-call-123",
+    "timestamp": "2023-01-01T10:00:00Z",
+    "workspaceId": "workspace-123"
+  }'
+```
+
+### 5. End-to-End Test Scenario
+
+Create a test script to verify the complete flow:
+
+```javascript
+// test-e2e.js
+const { PlatformFactory } = require('./dist/src/integrations/platformFactory');
+const { TranscriptRepository } = require('./dist/src/database/repositories/transcriptRepository');
+const { AccountAssociationService } = require('./dist/src/services/accountAssociation');
+
+async function testE2E() {
+  try {
+    console.log('🧪 Starting End-to-End Test...');
+    
+    // 1. Test platform clients
+    const gongClient = PlatformFactory.createClient('gong');
+    const isGongConnected = await gongClient.testConnection();
+    console.log('✅ Gong connection:', isGongConnected);
+    
+    // 2. Test database
+    const repository = new TranscriptRepository();
+    const stats = await repository.getProcessingStats();
+    console.log('✅ Database stats:', stats);
+    
+    // 3. Test account association
+    const associationService = new AccountAssociationService(repository);
+    console.log('✅ Account association service initialized');
+    
+    // 4. Test transcript retrieval (if API keys are valid)
+    if (isGongConnected) {
+      const calls = await gongClient.listCalls({ 
+        fromDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) 
+      });
+      console.log(`✅ Retrieved ${calls.length} calls from Gong`);
+    }
+    
+    console.log('🎉 End-to-End Test Completed Successfully!');
+  } catch (error) {
+    console.error('❌ Test failed:', error.message);
+    process.exit(1);
+  }
+}
+
+testE2E();
+```
+
+Run the E2E test:
+```bash
+node test-e2e.js
+```
+
+## 📊 API Usage & Monitoring
+
+### Platform Rate Limits
+
+| Platform  | Free Tier | Rate Limit | Notes |
+|-----------|-----------|------------|-------|
+| Gong      | N/A       | 3 req/s    | OAuth2 required |
+| Clari     | N/A       | 10 req/s   | Bearer token |
+| Fireflies | 50 req/day| Burst: 50  | GraphQL API |
+
+### Health Check Endpoints
+
+```bash
+# Check platform connectivity
+GET /health/gong
+GET /health/clari  
+GET /health/fireflies
+
+# Check database status
+GET /health/database
+
+# Check SQS queue status
+GET /health/queues
+```
+
+## 🔧 Configuration Options
+
+### Custom Account Association Rules
+
+```javascript
+// Add custom domain rule
+const rule = {
+  id: 'custom-rule-1',
+  name: 'Acme Corp Rule',
+  type: 'domain',
+  pattern: 'acme.com',
+  accountId: 'account-123',
+  priority: 100,
+  active: true
+};
+
+associationService.addCustomRule(rule);
+```
+
+### Platform-Specific Settings
+
+```javascript
+// Gong client configuration
+const gongClient = new GongClient({
+  rateLimit: 3, // requests per second
+  retryAttempts: 3,
+  timeout: 30000
+});
+
+// Clari client configuration  
+const clariClient = new ClariClient({
+  rateLimit: 10,
+  retryAttempts: 5,
+  batchSize: 50
+});
+```
+
+## 🐛 Troubleshooting
 
 ### Common Issues
 
-1. **API Rate Limits**: Check `/sync/status` endpoint
-2. **Missing Transcripts**: Verify Fireflies API key and permissions
-3. **Client Grouping**: Review grouping rules in database
+1. **Authentication Failures**
+   ```bash
+   # Check API credentials
+   echo $GONG_CLIENT_ID
+   echo $CLARI_API_TOKEN
+   echo $FIREFLIES_API_KEY
+   ```
 
-### Logs
+2. **Database Connection Issues**
+   ```bash
+   # Test Supabase connection
+   curl -H "apikey: $SUPABASE_SERVICE_KEY" \
+        "$SUPABASE_URL/rest/v1/transcripts?select=count"
+   ```
 
-Application logs include:
-- Sync operations and errors
-- API usage tracking
-- Client assignment decisions
-- Query processing results
+3. **Webhook Signature Verification**
+   ```bash
+   # Test webhook signature
+   node -e "
+   const crypto = require('crypto');
+   const payload = JSON.stringify({test: true});
+   const signature = crypto.createHmac('sha256', 'your-secret').update(payload).digest('hex');
+   console.log('Expected signature:', 'sha256=' + signature);
+   "
+   ```
 
-## Contributing
+### Debug Mode
 
-1. Fork the repository
-2. Create feature branch
-3. Add tests for new functionality
-4. Submit pull request
+Enable debug logging:
+```bash
+export DEBUG=fireflies:*
+export LOG_LEVEL=debug
+npm run dev
+```
 
-## License
+## 📈 Production Deployment
 
-MIT License - see LICENSE file for details.
+### AWS Lambda Deployment
+
+```bash
+# Build the project
+npm run build
+
+# Deploy via CDK
+cd infrastructure
+cdk deploy --all
+
+# Or use Serverless Framework
+npm install -g serverless
+serverless deploy
+```
+
+### Environment Variables Checklist
+
+- [ ] All platform API keys configured
+- [ ] Supabase URL and service key set
+- [ ] Webhook secrets configured
+- [ ] AWS region and SQS queue URLs
+- [ ] Rate limiting parameters tuned
+
+### Monitoring & Alerts
+
+Set up CloudWatch alarms for:
+- Lambda function errors
+- SQS queue depth
+- Database connection failures
+- API rate limit violations
+
+## 📄 License
+
+Proprietary - All rights reserved.
+
+---
+
+**Need help?** Check the [troubleshooting guide](#-troubleshooting) for common issues and solutions.
