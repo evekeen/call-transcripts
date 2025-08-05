@@ -5,6 +5,7 @@ import * as sqs from 'aws-cdk-lib/aws-sqs';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
+import * as lambdaEventSources from 'aws-cdk-lib/aws-lambda-event-sources';
 import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
 import { Construct } from 'constructs';
 import * as path from 'path';
@@ -76,7 +77,7 @@ export class GongIntegrationStack extends cdk.Stack {
       logGroup: transcriptProcessorLogGroup
     });
 
-    transcriptProcessor.addEventSource(new cdk.aws_lambda_event_sources.SqsEventSource(transcriptQueue, {
+    transcriptProcessor.addEventSource(new lambdaEventSources.SqsEventSource(transcriptQueue, {
       batchSize: 10,
       maxBatchingWindow: cdk.Duration.seconds(20)
     }));
