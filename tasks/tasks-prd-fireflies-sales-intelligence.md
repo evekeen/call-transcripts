@@ -17,11 +17,13 @@
 - `jest.config.js` - Jest testing configuration (created)
 - `src/test/setup.ts` - Jest test setup file (created)
 - `.eslintrc.js` - ESLint configuration (created)
-- `src/lambdas/gongWebhook.ts` - Lambda handler for Gong webhook events
-- `src/lambdas/gongWebhook.test.ts` - Unit tests for webhook handler
-- `src/lambdas/transcriptProcessor.ts` - Lambda for processing and storing transcripts
-- `src/lambdas/transcriptProcessor.test.ts` - Unit tests for transcript processor
-- `src/database/schemas/transcript.ts` - Supabase schema for transcript storage
+- `src/lambdas/gongWebhook.ts` - Lambda handler for Gong webhook events (created)
+- `src/lambdas/gongWebhook.test.ts` - Unit tests for webhook handler (created)
+- `src/lambdas/clariWebhook.ts` - Lambda handler for Clari webhook events (created)
+- `src/lambdas/firefliesWebhook.ts` - Lambda handler for Fireflies webhook events (created)
+- `src/lambdas/transcriptProcessor.ts` - Lambda for processing and storing transcripts (created)
+- `src/lambdas/transcriptProcessor.test.ts` - Unit tests for transcript processor (created)
+- `src/database/schemas/transcript.ts` - Supabase schema for transcript storage (created)
 - `src/database/repositories/transcriptRepository.ts` - Repository pattern for transcript CRUD operations
 - `src/database/repositories/transcriptRepository.test.ts` - Unit tests for transcript repository
 - `src/services/accountAssociation.ts` - Logic for associating transcripts with client accounts
@@ -72,12 +74,12 @@
   - [x] 2.3.4 Create comprehensive test suites (64 tests total)
   - [x] 2.3.5 Add ESLint configuration for code quality
 
-- [ ] 3.0 Build Transcript Retrieval and Processing Pipeline
-  - [ ] 3.1 Implement GET /v2/calls endpoint integration to list calls with date range filtering
-  - [ ] 3.2 Create GET /v2/calls/{callId}/transcript endpoint integration to fetch full transcripts
-  - [ ] 3.3 Build Lambda function to process incoming transcripts and normalize data structure
-  - [ ] 3.4 Implement webhook endpoint handler for "call processing complete" events from Gong
-  - [ ] 3.5 Add optional AI content retrieval from /v2/calls/{callId}/ai-content endpoint
+- [x] 3.0 Build Transcript Retrieval and Processing Pipeline
+  - [x] 3.1 Implement GET /v2/calls endpoint integration to list calls with date range filtering
+  - [x] 3.2 Create GET /v2/calls/{callId}/transcript endpoint integration to fetch full transcripts
+  - [x] 3.3 Build Lambda function to process incoming transcripts and normalize data structure
+  - [x] 3.4 Implement webhook endpoint handlers for Gong, Clari, and Fireflies platforms
+  - [x] 3.5 Add optional AI content retrieval from platform APIs
   - [ ] 3.6 Create batch processing logic to handle multiple transcripts efficiently
 
 - [ ] 4.0 Create Database Schema and Storage Layer for Transcripts
