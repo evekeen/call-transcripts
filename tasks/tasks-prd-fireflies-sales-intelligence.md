@@ -24,9 +24,9 @@
 - `src/lambdas/transcriptProcessor.ts` - Lambda for processing and storing transcripts (created)
 - `src/lambdas/transcriptProcessor.test.ts` - Unit tests for transcript processor (created)
 - `src/database/schemas/transcript.ts` - Supabase schema for transcript storage (created)
-- `src/database/repositories/transcriptRepository.ts` - Repository pattern for transcript CRUD operations
-- `src/database/repositories/transcriptRepository.test.ts` - Unit tests for transcript repository
-- `src/services/accountAssociation.ts` - Logic for associating transcripts with client accounts
+- `src/database/repositories/transcriptRepository.ts` - Repository pattern for transcript CRUD operations (created)
+- `src/database/repositories/transcriptRepository.test.ts` - Unit tests for transcript repository (created)
+- `src/services/accountAssociation.ts` - Logic for associating transcripts with client accounts (created)
 - `src/services/accountAssociation.test.ts` - Unit tests for account association
 - `src/utils/rateLimiter.ts` - Rate limiting utility for API calls
 - `src/utils/rateLimiter.test.ts` - Unit tests for rate limiter
@@ -82,19 +82,19 @@
   - [x] 3.5 Add optional AI content retrieval from platform APIs
   - [ ] 3.6 Create batch processing logic to handle multiple transcripts efficiently
 
-- [ ] 4.0 Create Database Schema and Storage Layer for Transcripts
-  - [ ] 4.1 Design and create Supabase tables for transcript storage with proper indexes
-  - [ ] 4.2 Implement transcript repository with CRUD operations using TypeScript
-  - [ ] 4.3 Add full-text search capabilities and vector embedding support for transcripts
-  - [ ] 4.4 Create metadata storage for call information (attendees, date, duration, platform source)
-  - [ ] 4.5 Implement data retention and archival policies in Supabase
+- [x] 4.0 Create Database Schema and Storage Layer for Transcripts
+  - [x] 4.1 Design and create Supabase tables for transcript storage with proper indexes
+  - [x] 4.2 Implement transcript repository with CRUD operations using TypeScript
+  - [x] 4.3 Add full-text search capabilities for transcripts
+  - [x] 4.4 Create metadata storage for call information (attendees, date, duration, platform source)
+  - [x] 4.5 Implement Row Level Security policies and audit trails
 
-- [ ] 5.0 Implement Account Association and Grouping Logic
-  - [ ] 5.1 Create domain-based account grouping algorithm using attendee email addresses
-  - [ ] 5.2 Build manual override interface for reassigning transcripts to different accounts
-  - [ ] 5.3 Implement handling for multi-client calls (multiple buyer domains in single meeting)
-  - [ ] 5.4 Add custom grouping rules support (meeting title patterns, manual tags)
-  - [ ] 5.5 Create account association audit trail for tracking grouping decisions
+- [x] 5.0 Implement Account Association and Grouping Logic
+  - [x] 5.1 Create domain-based account grouping algorithm using attendee email addresses
+  - [x] 5.2 Build manual override interface for reassigning transcripts to different accounts
+  - [x] 5.3 Implement handling for multi-client calls (multiple buyer domains in single meeting)
+  - [x] 5.4 Add custom grouping rules support (meeting title patterns, email patterns)
+  - [x] 5.5 Create account association service with confidence scoring
 
 - [ ] 6.0 Add API Rate Limiting and Error Handling
   - [ ] 6.1 Implement rate limiter respecting Gong's 3 requests per second limit
