@@ -93,7 +93,7 @@ Create the Supabase database schema:
 psql -h your-supabase-host -U postgres -d postgres -f src/database/schemas/transcript.sql
 ```
 
-Or copy the SQL from `src/database/schemas/transcript.ts` and run it in your Supabase SQL editor.
+Or copy the SQL from `src/database/schemas/transcript.sql` and run it in your Supabase SQL editor.
 
 ### 4. AWS Infrastructure (Optional - for production)
 
