@@ -330,6 +330,7 @@
                 <input type="number" id="limit" placeholder="Limit (default: 50)" min="1" max="500" />
                 <button onclick="loadCalls()">Load Live Calls</button>
                 <button onclick="loadStoredTranscripts()">View Stored Transcripts</button>
+                <button onclick="syncCalls()" style="background: #28a745; border-color: #28a745;" onmouseover="this.style.background='#1e7e34'" onmouseout="this.style.background='#28a745'">Sync New Calls to Database</button>
             </div>
         </div>
 
@@ -673,6 +674,87 @@
                 closeTranscript();
             }
         });
+
+        async function syncCalls() {
+            const platform = document.getElementById('platform').value;
+            const limit = parseInt(document.getElementById('limit').value) || 50;
+            const days = 7; // Sync last 7 days
+            
+            const button = event.target;
+            const originalText = button.textContent;
+            
+            try {
+                // Show loading state
+                button.textContent = 'Syncing...';
+                button.disabled = true;
+                
+                const response = await fetch(`/api/${platform}/sync`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ days, limit })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    // Show success message
+                    const contentDiv = document.getElementById('content');
+                    contentDiv.innerHTML = `
+                        <div style="padding: 20px; text-align: center;">
+                            <div style="background: #d4edda; border: 1px solid #c3e6cb; color: #155724; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
+                                <h3>✅ Sync Completed Successfully!</h3>
+                                <p><strong>Platform:</strong> ${result.platform}</p>
+                                <p><strong>Total Calls Found:</strong> ${result.summary.total}</p>
+                                <p><strong>New Transcripts Stored:</strong> ${result.summary.processed}</p>
+                                <p><strong>Already Existed:</strong> ${result.summary.skipped}</p>
+                                <p><strong>Errors:</strong> ${result.summary.errors}</p>
+                            </div>
+                            
+                            ${result.details.length > 0 ? `
+                                <div style="text-align: left; max-height: 400px; overflow-y: auto; background: #f8f9fa; padding: 15px; border-radius: 6px;">
+                                    <h4>Sync Details:</h4>
+                                    ${result.details.map(detail => `
+                                        <div style="padding: 5px 0; border-bottom: 1px solid #e9ecef;">
+                                            <span style="color: ${detail.status === 'success' ? '#28a745' : detail.status === 'error' ? '#dc3545' : '#6c757d'};">
+                                                ${detail.status === 'success' ? '✅' : detail.status === 'error' ? '❌' : '⏭️'}
+                                            </span>
+                                            <strong>Call ID:</strong> ${detail.callId}
+                                            ${detail.title ? `<br><strong>Title:</strong> ${escapeHtml(detail.title)}` : ''}
+                                            ${detail.error ? `<br><strong>Error:</strong> ${escapeHtml(detail.error)}` : ''}
+                                            ${detail.reason ? `<br><strong>Reason:</strong> ${detail.reason}` : ''}
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            ` : ''}
+                            
+                            <button onclick="loadStoredTranscripts()" style="margin-top: 15px; padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 6px; cursor: pointer;">
+                                View Stored Transcripts
+                            </button>
+                        </div>
+                    `;
+                } else {
+                    throw new Error(result.error || 'Sync failed');
+                }
+            } catch (error) {
+                console.error('Sync error:', error);
+                const contentDiv = document.getElementById('content');
+                contentDiv.innerHTML = `
+                    <div style="padding: 20px; text-align: center;">
+                        <div style="background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; padding: 15px; border-radius: 6px;">
+                            <h3>❌ Sync Failed</h3>
+                            <p><strong>Error:</strong> ${escapeHtml(error.message)}</p>
+                            <p>Please check the console for more details and try again.</p>
+                        </div>
+                    </div>
+                `;
+            } finally {
+                // Restore button state
+                button.textContent = originalText;
+                button.disabled = false;
+            }
+        }
 
         // Close modal with Escape key
         document.addEventListener('keydown', function(e) {
