@@ -26,6 +26,7 @@ export class GongClient implements PlatformAdapter {
   private accessToken?: string;
   private tokenExpiry?: Date;
   private secretsManager: SecretsManagerClient;
+  private authMethod: 'basic' | 'oauth' | null = null;
 
   constructor(private secretName: string, region: string = 'us-east-1') {
     this.apiClient = axios.create({
@@ -52,14 +53,37 @@ export class GongClient implements PlatformAdapter {
     if (credentials) {
       this.credentials = credentials;
     } else {
-      await this.loadCredentialsFromSecrets();
+      try {
+        await this.loadCredentialsFromSecrets();
+      } catch (error) {
+        console.warn('AWS Secrets Manager not available, trying environment variables...');
+        this.loadCredentialsFromEnv();
+      }
     }
 
-    if (!this.credentials.clientId || !this.credentials.clientSecret) {
-      throw new Error('Missing Gong client credentials');
-    }
+    // Debug loaded credentials
+    console.log('Loaded credentials:', {
+      hasClientId: !!this.credentials.clientId,
+      hasClientSecret: !!this.credentials.clientSecret,
+      hasApiKey: !!this.credentials.apiKey,
+      clientIdValue: this.credentials.clientId,
+      clientSecretLength: this.credentials.clientSecret?.length
+    });
 
-    await this.getAccessToken();
+    // Support both OAuth (clientId + clientSecret) and Basic Auth (apiKey + apiSecret)
+    if (this.credentials.apiKey && this.credentials.clientSecret && !this.credentials.clientId) {
+      // Basic Auth with API Key and Secret
+      console.log('Using Basic Auth authentication');
+      this.authMethod = 'basic';
+      this.setupBasicAuth();
+    } else if (this.credentials.clientId && this.credentials.clientSecret && !this.credentials.apiKey) {
+      // OAuth with Client Credentials
+      console.log('Using OAuth authentication');
+      this.authMethod = 'oauth';
+      await this.getAccessToken();
+    } else {
+      throw new Error('Missing Gong credentials. Provide either: 1) GONG_API_KEY and GONG_API_SECRET for Basic Auth, or 2) GONG_CLIENT_ID and GONG_CLIENT_SECRET for OAuth');
+    }
   }
 
   private async loadCredentialsFromSecrets(): Promise<void> {
@@ -69,10 +93,25 @@ export class GongClient implements PlatformAdapter {
       
       if (response.SecretString) {
         const secrets = JSON.parse(response.SecretString);
-        this.credentials = {
-          clientId: secrets.clientId,
-          clientSecret: secrets.clientSecret
-        };
+        
+        // Prioritize Basic Auth if available
+        if (secrets.apiKey && secrets.apiSecret) {
+          this.credentials = {
+            apiKey: secrets.apiKey,
+            clientSecret: secrets.apiSecret
+          };
+        } else if (secrets.clientId && secrets.clientSecret) {
+          this.credentials = {
+            clientId: secrets.clientId,
+            clientSecret: secrets.clientSecret
+          };
+        } else {
+          this.credentials = {
+            clientId: secrets.clientId,
+            clientSecret: secrets.clientSecret,
+            apiKey: secrets.apiKey
+          };
+        }
       } else {
         throw new Error('No secret string found');
       }
@@ -80,6 +119,41 @@ export class GongClient implements PlatformAdapter {
       console.error('Failed to load credentials from Secrets Manager:', error);
       throw new Error('Failed to load Gong credentials');
     }
+  }
+
+  private loadCredentialsFromEnv(): void {
+    // Load credentials based on what's available, prioritizing Basic Auth
+    if (process.env.GONG_API_KEY && process.env.GONG_API_SECRET) {
+      // Basic Auth credentials
+      this.credentials = {
+        apiKey: process.env.GONG_API_KEY,
+        clientSecret: process.env.GONG_API_SECRET // Using clientSecret field for API secret
+      };
+    } else if (process.env.GONG_CLIENT_ID && process.env.GONG_CLIENT_SECRET) {
+      // OAuth credentials
+      this.credentials = {
+        clientId: process.env.GONG_CLIENT_ID,
+        clientSecret: process.env.GONG_CLIENT_SECRET
+      };
+    } else {
+      // Partial credentials for error handling
+      this.credentials = {
+        clientId: process.env.GONG_CLIENT_ID,
+        clientSecret: process.env.GONG_CLIENT_SECRET,
+        apiKey: process.env.GONG_API_KEY
+      };
+    }
+  }
+
+  private setupBasicAuth(): void {
+    if (!this.credentials.apiKey || !this.credentials.clientSecret) {
+      throw new Error('Missing API key or secret for Basic Auth');
+    }
+
+    // Create Base64 encoded token: base64(apiKey:apiSecret)
+    const token = Buffer.from(`${this.credentials.apiKey}:${this.credentials.clientSecret}`).toString('base64');
+    this.apiClient.defaults.headers.common['Authorization'] = `Basic ${token}`;
+    console.log('Gong Basic Auth configured successfully');
   }
 
   private async getAccessToken(): Promise<void> {
@@ -95,6 +169,8 @@ export class GongClient implements PlatformAdapter {
         scope: 'api:calls:read api:calls:transcript:read'
       });
 
+      console.log('Attempting OAuth token request to Gong...');
+      
       const response = await this.authClient.post<GongAuthResponse>(
         '/oauth2/token',
         params.toString()
@@ -104,9 +180,21 @@ export class GongClient implements PlatformAdapter {
       this.tokenExpiry = new Date(Date.now() + (response.data.expires_in - 60) * 1000);
       
       this.apiClient.defaults.headers.common['Authorization'] = `Bearer ${this.accessToken}`;
+      console.log('Gong OAuth token obtained successfully');
     } catch (error) {
       console.error('Failed to obtain Gong access token:', error);
-      throw new Error('Failed to authenticate with Gong');
+      if (error.response) {
+        console.error('Response status:', error.response.status);
+        console.error('Response data:', error.response.data);
+        console.error('Response headers:', error.response.headers);
+      }
+      
+      // Provide more specific error message
+      if (error.response?.status === 401) {
+        throw new Error('Gong OAuth authentication failed: Invalid client credentials or OAuth app not properly configured. Consider using Basic Auth instead.');
+      } else {
+        throw new Error(`Failed to authenticate with Gong: ${error.message}`);
+      }
     }
   }
 
@@ -118,7 +206,7 @@ export class GongClient implements PlatformAdapter {
 
   async testConnection(): Promise<boolean> {
     try {
-      await this.getAccessToken();
+      await this.ensureAuthenticated();
       const response = await this.apiClient.get('/calls', {
         params: {
           startDate: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
@@ -133,8 +221,15 @@ export class GongClient implements PlatformAdapter {
     }
   }
 
+  private async ensureAuthenticated(): Promise<void> {
+    if (this.authMethod === 'oauth') {
+      await this.getAccessToken();
+    }
+    // For Basic Auth, authentication is already set up in headers
+  }
+
   async listCalls(options: ListCallsOptions): Promise<CallMetadata[]> {
-    await this.getAccessToken();
+    await this.ensureAuthenticated();
     
     const calls: CallMetadata[] = [];
     let cursor: string | undefined;
@@ -150,6 +245,19 @@ export class GongClient implements PlatformAdapter {
             limit: Math.min(limit - calls.length, 100)
           }
         });
+
+        console.log('Gong API response:', {
+          status: response.status,
+          dataKeys: Object.keys(response.data),
+          callsType: typeof response.data.calls,
+          callsLength: Array.isArray(response.data.calls) ? response.data.calls.length : 'not array',
+          firstCallKeys: response.data.calls?.[0] ? Object.keys(response.data.calls[0]) : 'no calls'
+        });
+
+        if (!response.data.calls || !Array.isArray(response.data.calls)) {
+          console.log('Unexpected response structure:', response.data);
+          break;
+        }
 
         const mappedCalls = response.data.calls.map(call => this.mapGongCallToMetadata(call));
         calls.push(...mappedCalls);
@@ -169,7 +277,7 @@ export class GongClient implements PlatformAdapter {
   }
 
   async getTranscript(callId: string): Promise<Transcript> {
-    await this.getAccessToken();
+    await this.ensureAuthenticated();
 
     try {
       const [callResponse, transcriptResponse] = await Promise.all([
@@ -210,7 +318,7 @@ export class GongClient implements PlatformAdapter {
   }
 
   async getAIContent(callId: string): Promise<GongAIContent> {
-    await this.getAccessToken();
+    await this.ensureAuthenticated();
 
     try {
       const response = await this.apiClient.get<GongAIContent>(`/calls/${callId}/ai-content`);

@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gong Calls & Transcripts</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .controls {
+            padding: 20px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .controls-row {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .controls input, .controls button, .controls select {
+            padding: 10px 15px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .controls input, .controls select {
+            flex: 1;
+            min-width: 150px;
+        }
+
+        .controls button {
+            background: #007bff;
+            color: white;
+            border: 1px solid #007bff;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .controls button:hover {
+            background: #0056b3;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+            font-size: 1.1rem;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #007bff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            margin: 20px;
+            border-radius: 6px;
+            border: 1px solid #f5c6cb;
+        }
+
+        .calls-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+            padding: 20px;
+        }
+
+        .call-card {
+            background: white;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .call-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+            border-color: #007bff;
+        }
+
+        .call-card.loading {
+            opacity: 0.6;
+            cursor: wait;
+        }
+
+        .call-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #2c3e50;
+            line-height: 1.4;
+        }
+
+        .call-meta {
+            color: #6c757d;
+            font-size: 0.9rem;
+            margin-bottom: 8px;
+        }
+
+        .call-attendees {
+            margin-top: 15px;
+        }
+
+        .call-attendees h4 {
+            font-size: 0.9rem;
+            margin-bottom: 8px;
+            color: #495057;
+        }
+
+        .attendee {
+            display: inline-block;
+            background: #e3f2fd;
+            color: #1976d2;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            margin: 2px;
+        }
+
+        .attendee.host {
+            background: #e8f5e8;
+            color: #2e7d32;
+        }
+
+        .transcript-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .transcript-modal.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .transcript-content {
+            background: white;
+            width: 90%;
+            max-width: 800px;
+            max-height: 80%;
+            border-radius: 12px;
+            overflow: hidden;
+            transform: scale(0.9);
+            transition: transform 0.3s ease;
+        }
+
+        .transcript-modal.active .transcript-content {
+            transform: scale(1);
+        }
+
+        .transcript-header {
+            background: #343a40;
+            color: white;
+            padding: 20px;
+            position: relative;
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            background: none;
+            border: none;
+            color: white;
+            font-size: 1.5rem;
+            cursor: pointer;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: background 0.3s;
+        }
+
+        .close-btn:hover {
+            background: rgba(255,255,255,0.1);
+        }
+
+        .transcript-body {
+            padding: 20px;
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+
+        .transcript-segment {
+            margin-bottom: 15px;
+            padding: 12px;
+            border-left: 3px solid #007bff;
+            background: #f8f9fa;
+            border-radius: 0 6px 6px 0;
+        }
+
+        .segment-speaker {
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 5px;
+            font-size: 0.9rem;
+        }
+
+        .segment-text {
+            line-height: 1.6;
+            color: #495057;
+        }
+
+        .segment-time {
+            font-size: 0.8rem;
+            color: #6c757d;
+            margin-top: 5px;
+        }
+
+        .no-calls {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6c757d;
+        }
+
+        .no-calls h3 {
+            margin-bottom: 10px;
+            color: #495057;
+        }
+
+        @media (max-width: 768px) {
+            .calls-grid {
+                grid-template-columns: 1fr;
+                padding: 15px;
+            }
+            
+            .controls-row {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .controls input, .controls button {
+                width: 100%;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎯 Multi-Platform Call Intelligence</h1>
+            <p>View and browse call recordings and transcripts across all platforms</p>
+        </div>
+
+        <div class="controls">
+            <div class="controls-row">
+                <select id="platform">
+                    <option value="gong">Gong</option>
+                    <option value="clari">Clari</option>
+                    <option value="fireflies">Fireflies</option>
+                    <option value="fathom">Fathom</option>
+                    <option value="otter">Otter</option>
+                </select>
+                <input type="date" id="startDate" />
+                <input type="date" id="endDate" />
+                <input type="number" id="limit" placeholder="Limit (default: 50)" min="1" max="500" />
+                <button onclick="loadCalls()">Load Live Calls</button>
+                <button onclick="loadStoredTranscripts()">View Stored Transcripts</button>
+            </div>
+        </div>
+
+        <div id="content">
+            <div class="loading">
+                <div class="spinner"></div>
+                Loading calls...
+            </div>
+        </div>
+    </div>
+
+    <!-- Transcript Modal -->
+    <div class="transcript-modal" id="transcriptModal">
+        <div class="transcript-content">
+            <div class="transcript-header">
+                <h2 id="transcriptTitle">Call Transcript</h2>
+                <button class="close-btn" onclick="closeTranscript()">×</button>
+            </div>
+            <div class="transcript-body" id="transcriptBody">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    Loading transcript...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Set default dates (last 30 days)
+        document.addEventListener('DOMContentLoaded', function() {
+            const endDate = new Date();
+            const startDate = new Date();
+            startDate.setDate(startDate.getDate() - 30);
+            
+            document.getElementById('endDate').value = endDate.toISOString().split('T')[0];
+            document.getElementById('startDate').value = startDate.toISOString().split('T')[0];
+            
+            // Auto-load calls on page load
+            loadCalls();
+        });
+
+        async function loadCalls() {
+            const contentDiv = document.getElementById('content');
+            const platform = document.getElementById('platform').value;
+            const platformName = platform.charAt(0).toUpperCase() + platform.slice(1);
+            
+            contentDiv.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    Loading calls from ${platformName}...
+                </div>
+            `;
+
+            try {
+                const startDate = document.getElementById('startDate').value;
+                const endDate = document.getElementById('endDate').value;
+                const limit = document.getElementById('limit').value || 50;
+
+                let url = `/api/${platform}/calls?limit=${limit}`;
+                if (startDate) url += `&startDate=${startDate}`;
+                if (endDate) url += `&endDate=${endDate}`;
+
+                const response = await fetch(url);
+                const calls = await response.json();
+
+                if (response.ok) {
+                    renderCalls(calls, platform);
+                } else {
+                    throw new Error(calls.error || `Failed to load ${platformName} calls`);
+                }
+            } catch (error) {
+                console.error('Error loading calls:', error);
+                contentDiv.innerHTML = `
+                    <div class="error">
+                        <strong>Error:</strong> ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        async function loadStoredTranscripts() {
+            const contentDiv = document.getElementById('content');
+            contentDiv.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    Loading stored transcripts...
+                </div>
+            `;
+
+            try {
+                const startDate = document.getElementById('startDate').value;
+                const endDate = document.getElementById('endDate').value;
+                const limit = document.getElementById('limit').value || 50;
+
+                let url = `/api/transcripts?limit=${limit}&platforms=gong`;
+                if (startDate) url += `&startDate=${startDate}`;
+                if (endDate) url += `&endDate=${endDate}`;
+
+                const response = await fetch(url);
+                const result = await response.json();
+
+                if (response.ok) {
+                    renderStoredTranscripts(result.transcripts);
+                } else {
+                    throw new Error(result.error || 'Failed to load stored transcripts');
+                }
+            } catch (error) {
+                console.error('Error loading stored transcripts:', error);
+                contentDiv.innerHTML = `
+                    <div class="error">
+                        <strong>Error:</strong> ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        function renderCalls(calls, platform) {
+            const contentDiv = document.getElementById('content');
+            
+            if (!calls || calls.length === 0) {
+                contentDiv.innerHTML = `
+                    <div class="no-calls">
+                        <h3>No calls found</h3>
+                        <p>Try adjusting your date range or check your Gong connection.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const callsHTML = calls.map(call => `
+                <div class="call-card" onclick="loadTranscript('${platform}', '${call.id}', '${escapeHtml(call.title)}')">
+                    <div class="call-title">${escapeHtml(call.title)}</div>
+                    <div class="call-meta">
+                        <strong>Date:</strong> ${formatDate(call.startTime)}
+                    </div>
+                    <div class="call-meta">
+                        <strong>Duration:</strong> ${formatDuration(call.duration)}
+                    </div>
+                    <div class="call-meta">
+                        <strong>Platform:</strong> ${call.platform}
+                    </div>
+                    <div class="call-attendees">
+                        <h4>Attendees:</h4>
+                        ${call.attendees.map(attendee => 
+                            `<span class="attendee ${attendee.role || 'participant'}">
+                                ${escapeHtml(attendee.name || attendee.email)}
+                            </span>`
+                        ).join('')}
+                    </div>
+                </div>
+            `).join('');
+
+            contentDiv.innerHTML = `
+                <div class="calls-grid">
+                    ${callsHTML}
+                </div>
+            `;
+        }
+
+        function renderStoredTranscripts(transcripts) {
+            const contentDiv = document.getElementById('content');
+            
+            if (!transcripts || transcripts.length === 0) {
+                contentDiv.innerHTML = `
+                    <div class="no-calls">
+                        <h3>No stored transcripts found</h3>
+                        <p>Try processing some calls first or check your date range.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const transcriptsHTML = transcripts.map(transcript => `
+                <div class="call-card" onclick="viewStoredTranscript('${transcript.id}', '${escapeHtml(transcript.title)}')">
+                    <div class="call-title">${escapeHtml(transcript.title)}</div>
+                    <div class="call-meta">
+                        <strong>Date:</strong> ${formatDate(transcript.start_time)}
+                    </div>
+                    <div class="call-meta">
+                        <strong>Duration:</strong> ${formatDuration(transcript.duration)}
+                    </div>
+                    <div class="call-meta">
+                        <strong>Platform:</strong> ${transcript.platform}
+                    </div>
+                    <div class="call-meta">
+                        <strong>Processed:</strong> ${formatDate(transcript.processed_at)}
+                    </div>
+                </div>
+            `).join('');
+
+            contentDiv.innerHTML = `
+                <div class="calls-grid">
+                    ${transcriptsHTML}
+                </div>
+            `;
+        }
+
+        async function loadTranscript(platform, callId, title) {
+            const modal = document.getElementById('transcriptModal');
+            const titleEl = document.getElementById('transcriptTitle');
+            const bodyEl = document.getElementById('transcriptBody');
+            
+            titleEl.textContent = title;
+            bodyEl.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    Loading transcript...
+                </div>
+            `;
+            
+            modal.classList.add('active');
+            
+            try {
+                const response = await fetch(`/api/${platform}/transcripts/${callId}`);
+                const transcript = await response.json();
+                
+                if (response.ok) {
+                    renderTranscript(transcript);
+                } else {
+                    throw new Error(transcript.error || 'Failed to load transcript');
+                }
+            } catch (error) {
+                console.error('Error loading transcript:', error);
+                bodyEl.innerHTML = `
+                    <div class="error">
+                        <strong>Error:</strong> ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        async function viewStoredTranscript(transcriptId, title) {
+            const modal = document.getElementById('transcriptModal');
+            const titleEl = document.getElementById('transcriptTitle');
+            const bodyEl = document.getElementById('transcriptBody');
+            
+            titleEl.textContent = title;
+            bodyEl.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    Loading stored transcript...
+                </div>
+            `;
+            
+            modal.classList.add('active');
+            
+            try {
+                const response = await fetch(`/api/transcripts/${transcriptId}`);
+                const transcript = await response.json();
+                
+                if (response.ok) {
+                    bodyEl.innerHTML = `
+                        <div class="transcript-segment">
+                            <div class="segment-text">${escapeHtml(transcript.full_text)}</div>
+                        </div>
+                    `;
+                } else {
+                    throw new Error(transcript.error || 'Failed to load stored transcript');
+                }
+            } catch (error) {
+                console.error('Error loading stored transcript:', error);
+                bodyEl.innerHTML = `
+                    <div class="error">
+                        <strong>Error:</strong> ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        function renderTranscript(transcript) {
+            const bodyEl = document.getElementById('transcriptBody');
+            
+            if (!transcript.segments || transcript.segments.length === 0) {
+                bodyEl.innerHTML = `
+                    <div class="transcript-segment">
+                        <div class="segment-text">${escapeHtml(transcript.fullText || 'No transcript text available')}</div>
+                    </div>
+                `;
+                return;
+            }
+            
+            const segmentsHTML = transcript.segments.map(segment => `
+                <div class="transcript-segment">
+                    <div class="segment-speaker">${escapeHtml(segment.speaker)}</div>
+                    <div class="segment-text">${escapeHtml(segment.text)}</div>
+                    <div class="segment-time">${formatTime(segment.startTime)} - ${formatTime(segment.endTime)}</div>
+                </div>
+            `).join('');
+            
+            bodyEl.innerHTML = segmentsHTML;
+        }
+
+        function closeTranscript() {
+            document.getElementById('transcriptModal').classList.remove('active');
+        }
+
+        // Utility functions
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        function formatDuration(seconds) {
+            if (!seconds) return 'Unknown';
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            const secs = seconds % 60;
+            
+            if (hours > 0) {
+                return `${hours}h ${minutes}m ${secs}s`;
+            } else if (minutes > 0) {
+                return `${minutes}m ${secs}s`;
+            } else {
+                return `${secs}s`;
+            }
+        }
+
+        function formatTime(milliseconds) {
+            const seconds = Math.floor(milliseconds / 1000);
+            const minutes = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${minutes}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        // Close modal when clicking outside
+        document.getElementById('transcriptModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeTranscript();
+            }
+        });
+
+        // Close modal with Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeTranscript();
+            }
+        });
+    </script>
+</body>
+</html>

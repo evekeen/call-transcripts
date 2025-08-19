@@ -1,20 +1,17 @@
 import express from 'express';
-import { config } from '../config';
-import { SyncService } from '../services/sync';
-import { QueryService } from '../services/query';
-import { Database } from '../database';
+import { config, validateConfig } from '../config';
+import { TranscriptRepository } from '../database/repositories/transcriptRepository';
+import { PlatformFactory, PlatformType } from '../integrations/platformFactory';
+import path from 'path';
 
 export class ApiServer {
   private app: express.Application;
-  private syncService: SyncService;
-  private queryService: QueryService;
-  private db: Database;
+  private transcriptRepo: TranscriptRepository;
 
   constructor() {
     this.app = express();
-    this.syncService = new SyncService();
-    this.queryService = new QueryService();
-    this.db = new Database();
+    validateConfig();
+    this.transcriptRepo = new TranscriptRepository();
     this.setupMiddleware();
     this.setupRoutes();
   }
@@ -22,6 +19,9 @@ export class ApiServer {
   private setupMiddleware(): void {
     this.app.use(express.json());
     this.app.use(express.urlencoded({ extended: true }));
+    
+    // Serve static files
+    this.app.use(express.static(path.join(__dirname, '../../public')));
     
     // CORS
     this.app.use((req, res, next) => {
@@ -38,102 +38,132 @@ export class ApiServer {
       res.json({ status: 'healthy', timestamp: new Date().toISOString() });
     });
 
-    // Sync endpoints
-    this.app.post('/sync/full', async (req, res) => {
+    // Multi-platform API endpoints
+    this.app.get('/api/:platform/calls', async (req, res) => {
       try {
-        await this.syncService.syncAllTranscripts();
-        res.json({ message: 'Full sync started successfully' });
-      } catch (error) {
-        console.error('Full sync error:', error);
-        res.status(500).json({ error: 'Failed to start full sync' });
-      }
-    });
-
-    this.app.post('/sync/recent', async (req, res) => {
-      try {
-        await this.syncService.syncRecentTranscripts();
-        res.json({ message: 'Recent sync completed successfully' });
-      } catch (error) {
-        console.error('Recent sync error:', error);
-        res.status(500).json({ error: 'Failed to sync recent transcripts' });
-      }
-    });
-
-    this.app.get('/sync/status', async (req, res) => {
-      try {
-        const status = await this.syncService.getStatus();
-        res.json(status);
-      } catch (error) {
-        console.error('Status error:', error);
-        res.status(500).json({ error: 'Failed to get sync status' });
-      }
-    });
-
-    // Query endpoints
-    this.app.post('/query', async (req, res) => {
-      try {
-        const { question, client_account_id, limit } = req.body;
+        const { platform } = req.params;
+        const { startDate, endDate, limit = 50 } = req.query;
         
-        if (!question) {
-          return res.status(400).json({ error: 'Question is required' });
+        if (!this.isValidPlatform(platform)) {
+          return res.status(400).json({ error: 'Invalid platform. Supported platforms: gong, clari, fireflies, fathom, otter' });
         }
-
-        const result = await this.queryService.queryTranscripts({
-          question,
-          client_account_id,
-          limit,
+        
+        const client = PlatformFactory.createClient(
+          platform as PlatformType, 
+          `${platform}-api-credentials`,
+          process.env.AWS_REGION
+        );
+        
+        await client.authenticate();
+        
+        const start = startDate ? new Date(startDate as string) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        const end = endDate ? new Date(endDate as string) : new Date();
+        
+        const calls = await client.listCalls({
+          startDate: start,
+          endDate: end,
+          limit: parseInt(limit as string)
         });
+        
+        res.json(calls);
+      } catch (error) {
+        console.error(`Get ${req.params.platform} calls error:`, error);
+        res.status(500).json({ error: `Failed to get ${req.params.platform} calls` });
+      }
+    });
 
+    this.app.get('/api/:platform/transcripts/:callId', async (req, res) => {
+      try {
+        const { platform, callId } = req.params;
+        
+        if (!this.isValidPlatform(platform)) {
+          return res.status(400).json({ error: 'Invalid platform. Supported platforms: gong, clari, fireflies, fathom, otter' });
+        }
+        
+        const client = PlatformFactory.createClient(
+          platform as PlatformType, 
+          `${platform}-api-credentials`,
+          process.env.AWS_REGION
+        );
+        
+        await client.authenticate();
+        const transcript = await client.getTranscript(callId);
+        
+        res.json(transcript);
+      } catch (error) {
+        console.error(`Get ${req.params.platform} transcript error:`, error);
+        res.status(500).json({ error: `Failed to get ${req.params.platform} transcript` });
+      }
+    });
+
+    this.app.get('/api/transcripts', async (req, res) => {
+      try {
+        const { accountIds, platforms, startDate, endDate, query, limit = 50, offset = 0 } = req.query;
+        
+        const searchOptions: any = {
+          limit: parseInt(limit as string),
+          offset: parseInt(offset as string)
+        };
+        
+        if (accountIds) {
+          searchOptions.accountIds = (accountIds as string).split(',');
+        }
+        
+        if (platforms) {
+          searchOptions.platforms = (platforms as string).split(',');
+        }
+        
+        if (startDate) {
+          searchOptions.startDate = new Date(startDate as string);
+        }
+        
+        if (endDate) {
+          searchOptions.endDate = new Date(endDate as string);
+        }
+        
+        if (query) {
+          searchOptions.query = query as string;
+        }
+        
+        const result = await this.transcriptRepo.searchTranscripts(searchOptions);
         res.json(result);
       } catch (error) {
-        console.error('Query error:', error);
-        res.status(500).json({ error: 'Failed to process query' });
+        console.error('Search transcripts error:', error);
+        res.status(500).json({ error: 'Failed to search transcripts' });
       }
     });
 
-    // Client account endpoints
-    this.app.get('/clients', async (req, res) => {
-      try {
-        const clients = await this.db.getClientAccounts();
-        res.json(clients);
-      } catch (error) {
-        console.error('Get clients error:', error);
-        res.status(500).json({ error: 'Failed to get client accounts' });
-      }
-    });
-
-    this.app.get('/clients/:id/transcripts', async (req, res) => {
+    this.app.get('/api/transcripts/:id', async (req, res) => {
       try {
         const { id } = req.params;
-        const transcripts = await this.db.getTranscriptsByClient(id);
-        res.json(transcripts);
+        const transcript = await this.transcriptRepo.getTranscriptById(id);
+        
+        if (!transcript) {
+          return res.status(404).json({ error: 'Transcript not found' });
+        }
+        
+        res.json(transcript);
       } catch (error) {
-        console.error('Get client transcripts error:', error);
-        res.status(500).json({ error: 'Failed to get client transcripts' });
+        console.error('Get transcript error:', error);
+        res.status(500).json({ error: 'Failed to get transcript' });
       }
     });
 
-    // Webhook endpoint for Fireflies
-    this.app.post('/webhook/fireflies', (req, res) => {
-      try {
-        console.log('Received Fireflies webhook:', req.body);
-        
-        // Queue the transcript for processing
-        // This would trigger a background job to fetch and process the new transcript
-        
-        res.json({ message: 'Webhook received successfully' });
-      } catch (error) {
-        console.error('Webhook error:', error);
-        res.status(500).json({ error: 'Failed to process webhook' });
-      }
-    });
+  }
+
+  private isValidPlatform(platform: string): boolean {
+    const validPlatforms = ['gong', 'clari', 'fireflies', 'fathom', 'otter'];
+    return validPlatforms.includes(platform.toLowerCase());
   }
 
   public start(): void {
     const port = config.server.port;
     this.app.listen(port, () => {
-      console.log(`🔥 Fireflies Sales Intelligence API running on port ${port}`);
+      console.log(`🎯 Multi-Platform Sales Intelligence API running on port ${port}`);
       console.log(`📊 Health check: http://localhost:${port}/health`);
+      console.log(`🌐 Web interface: http://localhost:${port}`);
+      console.log(`📞 Platform APIs: http://localhost:${port}/api/{platform}/calls`);
+      console.log(`🔗 Supported platforms: gong, clari, fireflies, fathom, otter`);
     });
   }
 }

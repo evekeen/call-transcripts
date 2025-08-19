@@ -36,11 +36,16 @@ export class FirefliesClient implements PlatformAdapter {
     if (credentials) {
       this.credentials = credentials;
     } else {
-      await this.loadCredentialsFromSecrets();
+      try {
+        await this.loadCredentialsFromSecrets();
+      } catch (error) {
+        console.warn('AWS Secrets Manager not available, trying environment variables...');
+        this.loadCredentialsFromEnv();
+      }
     }
 
     if (!this.credentials.apiKey) {
-      throw new Error('Missing Fireflies API key');
+      throw new Error('Missing Fireflies API key. Set FIREFLIES_API_KEY environment variable or configure AWS Secrets Manager.');
     }
 
     this.graphqlClient.setHeader('Authorization', `Bearer ${this.credentials.apiKey}`);
@@ -63,6 +68,12 @@ export class FirefliesClient implements PlatformAdapter {
       console.error('Failed to load credentials from Secrets Manager:', error);
       throw new Error('Failed to load Fireflies credentials');
     }
+  }
+
+  private loadCredentialsFromEnv(): void {
+    this.credentials = {
+      apiKey: process.env.FIREFLIES_API_KEY
+    };
   }
 
   async refreshAuth(): Promise<void> {

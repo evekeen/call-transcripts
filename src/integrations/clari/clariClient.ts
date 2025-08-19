@@ -44,11 +44,16 @@ export class ClariClient implements PlatformAdapter {
     if (credentials) {
       this.credentials = credentials;
     } else {
-      await this.loadCredentialsFromSecrets();
+      try {
+        await this.loadCredentialsFromSecrets();
+      } catch (error) {
+        console.warn('AWS Secrets Manager not available, trying environment variables...');
+        this.loadCredentialsFromEnv();
+      }
     }
 
     if (!this.credentials.apiKey) {
-      throw new Error('Missing Clari API key');
+      throw new Error('Missing Clari API key. Set CLARI_API_KEY environment variable or configure AWS Secrets Manager.');
     }
 
     // Clari uses API key authentication
@@ -78,6 +83,13 @@ export class ClariClient implements PlatformAdapter {
       console.error('Failed to load credentials from Secrets Manager:', error);
       throw new Error('Failed to load Clari credentials');
     }
+  }
+
+  private loadCredentialsFromEnv(): void {
+    this.credentials = {
+      apiKey: process.env.CLARI_API_KEY,
+      clientSecret: process.env.CLARI_ORG_PASSWORD
+    };
   }
 
   async refreshAuth(): Promise<void> {
