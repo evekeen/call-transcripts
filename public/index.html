@@ -362,6 +362,7 @@
         // Set default dates (last 30 days)
         document.addEventListener('DOMContentLoaded', function() {
             const endDate = new Date();
+            endDate.setDate(endDate.getDate() + 1); // Add 1 day to include full current day
             const startDate = new Date();
             startDate.setDate(startDate.getDate() - 30);
             
