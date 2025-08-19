@@ -111,8 +111,7 @@ export class GongClient implements PlatformAdapter {
         throw new Error('No secret string found');
       }
     } catch (error) {
-      console.error('Failed to load credentials from Secrets Manager:', error);
-      throw new Error('Failed to load Gong credentials');
+      throw new Error('Failed to load Gong credentials from AWS Secrets Manager');
     }
   }
 

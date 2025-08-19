@@ -65,8 +65,7 @@ export class FirefliesClient implements PlatformAdapter {
         throw new Error('No secret string found');
       }
     } catch (error) {
-      console.error('Failed to load credentials from Secrets Manager:', error);
-      throw new Error('Failed to load Fireflies credentials');
+      throw new Error('Failed to load Fireflies credentials from AWS Secrets Manager');
     }
   }
 
