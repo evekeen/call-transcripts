@@ -6,26 +6,26 @@ export interface GongAuthResponse {
   scope?: string;
 }
 
-// Actual Gong API response structure based on /v2/calls endpoint
+// Official Gong API response structure based on /v2/calls endpoint documentation
 export interface GongCall {
-  id: string;
-  url: string;
+  id: string; // Call ID like "7782342274025937895"
+  url: string; // Direct link to call in Gong UI
   title: string;
-  scheduled: string; // ISO datetime string
-  started: string; // ISO datetime string  
-  duration: number; // seconds
-  primaryUserId: string;
+  scheduled: string; // ISO timestamp string
+  started: string; // ISO timestamp string
+  duration: number; // Duration in seconds
+  primaryUserId: string; // Primary user ID like "234599484848423"
   direction: 'Inbound' | 'Outbound' | 'Internal' | 'Conference';
-  system: string; // e.g., "Google Meet", "Zoom", etc.
+  system: string; // System name like "Outreach", "Google Meet", "Zoom", etc.
   scope: 'Internal' | 'External';
   media: 'Audio' | 'Video';
-  language: string; // e.g., "eng"
+  language: string; // Language code like "eng"
   workspaceId: string;
-  sdrDisposition: string | null;
+  sdrDisposition: string | null; // e.g., "Got the gatekeeper"
   clientUniqueId: string | null;
-  customData: any | null;
-  purpose: string | null;
-  meetingUrl: string | null;
+  customData: string | null; // e.g., "Conference Call"
+  purpose: string | null; // e.g., "Demo Call"
+  meetingUrl: string | null; // e.g., "https://zoom.us/j/123"
   isPrivate: boolean;
   calendarEventId: string | null;
 }
@@ -43,19 +43,34 @@ export interface GongParticipant {
   };
 }
 
+// Official Gong API transcript response structure from POST /v2/calls/transcript
 export interface GongTranscriptSegment {
   speakerId: string;
-  speakerName?: string;
-  topic?: string;
+  topic?: string; // Optional topic classification like "Call Setup", "Objections", etc.
   sentences: GongSentence[];
 }
 
 export interface GongSentence {
-  start: number;
-  end: number;
-  text: string;
+  start: number; // Start time in milliseconds
+  end: number;   // End time in milliseconds  
+  text: string;  // The actual spoken text
 }
 
+export interface GongTranscriptResponse {
+  requestId: string; // For troubleshooting/debugging
+  records: {
+    totalRecords: number;
+    currentPageSize: number;
+    currentPageNumber: number;
+    cursor?: string; // For pagination if more pages exist
+  };
+  callTranscripts: {
+    callId: string;
+    transcript: GongTranscriptSegment[];
+  }[];
+}
+
+// Legacy interface for backward compatibility
 export interface GongTranscript {
   callId: string;
   transcript: GongTranscriptSegment[];
@@ -67,6 +82,14 @@ export interface GongListCallsRequest {
   workspaceId?: string;
   cursor?: string;
   limit?: number;
+}
+
+// Official Gong API transcript request structure for POST /v2/calls/transcript
+export interface GongTranscriptRequest {
+  filter: {
+    callIds: string[]; // Array of call IDs to retrieve transcripts for
+    // Optional additional filters could be added here per API docs
+  };
 }
 
 // Actual Gong API response structure for /v2/calls endpoint

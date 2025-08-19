@@ -14,6 +14,8 @@ import {
   GongCall,
   GongListCallsResponse,
   GongTranscript,
+  GongTranscriptResponse,
+  GongTranscriptRequest,
   GongAIContent,
   GongErrorResponse,
   GongParticipant
@@ -268,23 +270,34 @@ export class GongClient implements PlatformAdapter {
     try {
       const [callResponse, transcriptResponse] = await Promise.all([
         this.apiClient.get<{ call: GongCall }>(`/calls/${callId}`),
-        this.apiClient.get<GongTranscript>(`/calls/${callId}/transcript`)
+        this.apiClient.post<GongTranscriptResponse>('/calls/transcript', {
+          filter: {
+            callIds: [callId]
+          }
+        } as GongTranscriptRequest)
       ]);
 
       const call = callResponse.data.call;
-      const gongTranscript = transcriptResponse.data;
+      const transcriptData = transcriptResponse.data;
+
+      // Find the transcript for our specific call ID
+      const callTranscript = transcriptData.callTranscripts?.find(ct => ct.callId === callId);
+      
+      if (!callTranscript) {
+        throw new Error(`No transcript found for call ID: ${callId}`);
+      }
 
       const segments: TranscriptSegment[] = [];
       let fullText = '';
 
-      for (const segment of gongTranscript.transcript) {
+      for (const segment of callTranscript.transcript) {
         for (const sentence of segment.sentences) {
           const transcriptSegment: TranscriptSegment = {
-            speaker: segment.speakerName || segment.speakerId,
-            speakerEmail: undefined, // Participants not available in basic call data
+            speaker: segment.speakerId, // Gong uses speakerId to identify speakers
+            speakerEmail: undefined, // Would need /v2/calls/extensive to map speakerId to email
             text: sentence.text,
-            startTime: sentence.start,
-            endTime: sentence.end
+            startTime: sentence.start, // Time in milliseconds
+            endTime: sentence.end     // Time in milliseconds
           };
           segments.push(transcriptSegment);
           fullText += sentence.text + ' ';
@@ -327,7 +340,7 @@ export class GongClient implements PlatformAdapter {
     // Participants would need to be fetched separately from /v2/calls/{id}/extensive
     const attendees: Attendee[] = [];
     
-    // Calculate end time from start time + duration
+    // Convert ISO timestamp strings to JavaScript Date objects
     const startTime = new Date(call.started);
     const endTime = new Date(startTime.getTime() + call.duration * 1000);
 
