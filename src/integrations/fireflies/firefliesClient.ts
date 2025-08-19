@@ -187,8 +187,9 @@ export class FirefliesClient implements PlatformAdapter {
           sentences {
             index
             speaker_name
-            speaker_email
+            speaker_id
             text
+            raw_text
             start_time
             end_time
           }
@@ -197,12 +198,6 @@ export class FirefliesClient implements PlatformAdapter {
             action_items
             outline
             keywords
-            notes
-            questions {
-              question
-              answer
-              timestamp
-            }
           }
           audio_url
           video_url
@@ -225,10 +220,10 @@ export class FirefliesClient implements PlatformAdapter {
       
       const segments: TranscriptSegment[] = firefliesTranscript.sentences.map(sentence => ({
         speaker: sentence.speaker_name,
-        speakerEmail: sentence.speaker_email,
+        speakerEmail: undefined, // Fireflies doesn't provide speaker_email in sentences
         text: sentence.text,
-        startTime: sentence.start_time * 1000, // Convert to milliseconds
-        endTime: sentence.end_time * 1000
+        startTime: parseFloat(sentence.start_time) * 1000, // Convert to milliseconds
+        endTime: parseFloat(sentence.end_time) * 1000
       }));
 
       const fullText = segments.map(s => s.text).join(' ');
@@ -254,12 +249,6 @@ export class FirefliesClient implements PlatformAdapter {
             action_items
             outline
             keywords
-            notes
-            questions {
-              question
-              answer
-              timestamp
-            }
           }
         }
       }

@@ -22,11 +22,11 @@ export interface FirefliesAttendee {
 export interface FirefliesSentence {
   index: number;
   speaker_name: string;
-  speaker_email?: string;
+  speaker_id: string;
   text: string;
-  start_time: number;
-  end_time: number;
   raw_text?: string;
+  start_time: string; // Fireflies returns as string
+  end_time: string; // Fireflies returns as string
 }
 
 export interface FirefliesSummary {
@@ -34,15 +34,8 @@ export interface FirefliesSummary {
   action_items?: string[];
   outline?: string[];
   keywords?: string[];
-  notes?: string;
-  questions?: FirefliesQuestion[];
 }
 
-export interface FirefliesQuestion {
-  question: string;
-  answer?: string;
-  timestamp?: number;
-}
 
 export interface FirefliesUser {
   id: string;
