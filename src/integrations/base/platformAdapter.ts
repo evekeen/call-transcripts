@@ -50,7 +50,7 @@ export interface ListCallsOptions {
 export interface PlatformAdapter {
   name: string;
   
-  authenticate(credentials: PlatformCredentials): Promise<void>;
+  authenticate(credentials?: PlatformCredentials): Promise<void>;
   
   listCalls(options: ListCallsOptions): Promise<CallMetadata[]>;
   

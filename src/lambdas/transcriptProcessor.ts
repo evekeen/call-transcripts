@@ -13,14 +13,21 @@ interface TranscriptMessage {
   source: 'webhook' | 'batch';
 }
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
+let supabase: ReturnType<typeof createClient> | null = null;
 
-if (!supabaseUrl || !supabaseKey) {
-  throw new Error('Missing required Supabase environment variables');
+function getSupabaseClient() {
+  if (!supabase) {
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
+    
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error('Missing required Supabase environment variables');
+    }
+    
+    supabase = createClient(supabaseUrl, supabaseKey);
+  }
+  return supabase;
 }
-
-const supabase = createClient(supabaseUrl, supabaseKey);
 
 export const handler = async (event: SQSEvent): Promise<void> => {
   console.log(`Processing ${event.Records.length} transcript messages`);
@@ -108,18 +115,18 @@ async function determineAccountAssociation(transcript: Transcript): Promise<stri
   }
 
   // Check if account already exists
-  const { data: existingAccount } = await supabase
+  const { data: existingAccount } = await getSupabaseClient()
     .from('accounts')
     .select('id')
     .eq('domain', primaryDomain)
     .single();
 
   if (existingAccount) {
-    return existingAccount.id;
+    return existingAccount.id as string;
   }
 
   // Create new account
-  const { data: newAccount, error } = await supabase
+  const { data: newAccount, error } = await getSupabaseClient()
     .from('accounts')
     .insert({
       name: primaryDomain,
@@ -134,7 +141,7 @@ async function determineAccountAssociation(transcript: Transcript): Promise<stri
     return `domain-${primaryDomain}`;
   }
 
-  return newAccount.id;
+  return newAccount.id as string;
 }
 
 function isInternalDomain(domain: string): boolean {
@@ -159,7 +166,7 @@ async function storeTranscript(
   message: TranscriptMessage
 ): Promise<void> {
   // Store main transcript record
-  const { data: transcriptRecord, error: transcriptError } = await supabase
+  const { data: transcriptRecord, error: transcriptError } = await getSupabaseClient()
     .from('transcripts')
     .insert({
       id: transcript.callId,
@@ -186,7 +193,7 @@ async function storeTranscript(
     if (transcriptError.code === '23505') { // Duplicate key
       console.log(`Transcript ${transcript.callId} already exists, updating...`);
       
-      const { error: updateError } = await supabase
+      const { error: updateError } = await getSupabaseClient()
         .from('transcripts')
         .update({
           full_text: transcript.fullText,
@@ -221,7 +228,7 @@ async function storeTranscript(
     }));
 
     // Delete existing segments first (in case of update)
-    await supabase
+    await getSupabaseClient()
       .from('transcript_segments')
       .delete()
       .eq('transcript_id', transcript.callId);
@@ -230,7 +237,7 @@ async function storeTranscript(
     const batchSize = 100;
     for (let i = 0; i < segments.length; i += batchSize) {
       const batch = segments.slice(i, i + batchSize);
-      const { error: segmentError } = await supabase
+      const { error: segmentError } = await getSupabaseClient()
         .from('transcript_segments')
         .insert(batch);
 

@@ -1,35 +1,53 @@
-import { handler } from './transcriptProcessor';
 import { SQSEvent } from 'aws-lambda';
 import { PlatformFactory } from '../integrations/platformFactory';
-import { createClient } from '@supabase/supabase-js';
-
-jest.mock('../integrations/platformFactory');
-jest.mock('@supabase/supabase-js');
 
 const mockPlatformClient = {
-  authenticate: jest.fn(),
+  authenticate: jest.fn().mockResolvedValue(undefined),
   getTranscript: jest.fn(),
   getAIContent: jest.fn()
 };
 
 const mockSupabaseClient = {
-  from: jest.fn().mockReturnThis(),
-  select: jest.fn().mockReturnThis(),
-  insert: jest.fn().mockReturnThis(),
-  update: jest.fn().mockReturnThis(),
-  delete: jest.fn().mockReturnThis(),
-  eq: jest.fn().mockReturnThis(),
-  single: jest.fn()
+  from: jest.fn()
 };
 
+// Mock the dependencies before importing the handler
+jest.mock('../integrations/platformFactory');
+jest.mock('@supabase/supabase-js', () => ({
+  createClient: jest.fn().mockReturnValue(mockSupabaseClient)
+}));
+
 (PlatformFactory.createClient as jest.Mock).mockReturnValue(mockPlatformClient);
-(createClient as jest.Mock).mockReturnValue(mockSupabaseClient);
+
+// Import handler after mocking dependencies
+import { handler } from './transcriptProcessor';
 
 describe('Transcript Processor', () => {
   const originalEnv = process.env;
 
   beforeEach(() => {
     jest.clearAllMocks();
+    
+    // Reset the mock implementation
+    mockSupabaseClient.from.mockImplementation(() => ({
+      select: jest.fn(() => ({
+        eq: jest.fn(() => ({
+          single: jest.fn()
+        }))
+      })),
+      insert: jest.fn(() => ({
+        select: jest.fn(() => ({
+          single: jest.fn()
+        }))
+      })),
+      update: jest.fn(() => ({
+        eq: jest.fn()
+      })),
+      delete: jest.fn(() => ({
+        eq: jest.fn()
+      }))
+    }));
+    
     process.env = {
       ...originalEnv,
       SUPABASE_URL: 'https://test.supabase.co',
@@ -104,14 +122,41 @@ describe('Transcript Processor', () => {
     mockPlatformClient.getTranscript.mockResolvedValue(mockTranscript);
     mockPlatformClient.getAIContent.mockResolvedValue({ summary: 'Test summary' });
 
-    // Mock Supabase responses for account creation
-    mockSupabaseClient.single
-      .mockResolvedValueOnce({ data: null, error: null }) // No existing account
-      .mockResolvedValueOnce({ data: { id: 'account-123' }, error: null }) // New account created
-      .mockResolvedValueOnce({ data: { id: 'transcript-123' }, error: null }); // Transcript stored
+    // Mock the Supabase chain for account lookup (account doesn't exist)
+    const accountSingleMock = jest.fn().mockResolvedValue({ data: null, error: null });
+    const accountEqMock = jest.fn(() => ({ single: accountSingleMock }));
+    const accountSelectMock = jest.fn(() => ({ eq: accountEqMock }));
 
-    mockSupabaseClient.insert.mockResolvedValue({ data: null, error: null });
-    mockSupabaseClient.delete.mockResolvedValue({ data: null, error: null });
+    // Mock the Supabase chain for account creation
+    const accountCreateSingleMock = jest.fn().mockResolvedValue({ 
+      data: { id: 'account-123' }, 
+      error: null 
+    });
+    const accountCreateSelectMock = jest.fn(() => ({ single: accountCreateSingleMock }));
+    const accountCreateInsertMock = jest.fn(() => ({ select: accountCreateSelectMock }));
+
+    // Mock the Supabase chain for transcript insertion
+    const transcriptSingleMock = jest.fn().mockResolvedValue({ 
+      data: { id: 'transcript-123' }, 
+      error: null 
+    });
+    const transcriptSelectMock = jest.fn(() => ({ single: transcriptSingleMock }));
+    const transcriptInsertMock = jest.fn(() => ({ select: transcriptSelectMock }));
+
+    // Mock the Supabase chain for segment deletion
+    const segmentDeleteEqMock = jest.fn().mockResolvedValue({ error: null });
+    const segmentDeleteMock = jest.fn(() => ({ eq: segmentDeleteEqMock }));
+
+    // Mock the Supabase chain for segment insertion
+    const segmentInsertMock = jest.fn().mockResolvedValue({ data: null, error: null });
+
+    // Set up the call sequence
+    mockSupabaseClient.from
+      .mockReturnValueOnce({ select: accountSelectMock })      // Account lookup
+      .mockReturnValueOnce({ insert: accountCreateInsertMock }) // Account creation
+      .mockReturnValueOnce({ insert: transcriptInsertMock })   // Transcript insertion
+      .mockReturnValueOnce({ delete: segmentDeleteMock })      // Segment deletion
+      .mockReturnValueOnce({ insert: segmentInsertMock });     // Segment insertion
 
     await handler(event);
 
@@ -119,6 +164,7 @@ describe('Transcript Processor', () => {
     expect(mockPlatformClient.authenticate).toHaveBeenCalled();
     expect(mockPlatformClient.getTranscript).toHaveBeenCalledWith('call-123');
     expect(mockPlatformClient.getAIContent).toHaveBeenCalledWith('call-123');
+    expect(mockSupabaseClient.from).toHaveBeenCalledWith('accounts');
   });
 
   it('should handle existing account correctly', async () => {
@@ -136,13 +182,32 @@ describe('Transcript Processor', () => {
     mockPlatformClient.getTranscript.mockResolvedValue(mockTranscript);
     mockPlatformClient.getAIContent.mockResolvedValue({ summary: 'Test summary' });
 
-    // Mock existing account
-    mockSupabaseClient.single
-      .mockResolvedValueOnce({ data: { id: 'existing-account-123' }, error: null })
-      .mockResolvedValueOnce({ data: { id: 'transcript-123' }, error: null });
+    // Mock existing account lookup
+    const accountSingleMock = jest.fn().mockResolvedValue({ 
+      data: { id: 'existing-account-123' }, 
+      error: null 
+    });
+    const accountEqMock = jest.fn(() => ({ single: accountSingleMock }));
+    const accountSelectMock = jest.fn(() => ({ eq: accountEqMock }));
 
-    mockSupabaseClient.insert.mockResolvedValue({ data: null, error: null });
-    mockSupabaseClient.delete.mockResolvedValue({ data: null, error: null });
+    // Mock transcript insertion
+    const transcriptSingleMock = jest.fn().mockResolvedValue({ 
+      data: { id: 'transcript-123' }, 
+      error: null 
+    });
+    const transcriptSelectMock = jest.fn(() => ({ single: transcriptSingleMock }));
+    const transcriptInsertMock = jest.fn(() => ({ select: transcriptSelectMock }));
+
+    // Mock segment operations
+    const segmentDeleteEqMock = jest.fn().mockResolvedValue({ error: null });
+    const segmentDeleteMock = jest.fn(() => ({ eq: segmentDeleteEqMock }));
+    const segmentInsertMock = jest.fn().mockResolvedValue({ data: null, error: null });
+
+    mockSupabaseClient.from
+      .mockReturnValueOnce({ select: accountSelectMock })    // Account lookup (exists)
+      .mockReturnValueOnce({ insert: transcriptInsertMock }) // Transcript insertion
+      .mockReturnValueOnce({ delete: segmentDeleteMock })    // Segment deletion
+      .mockReturnValueOnce({ insert: segmentInsertMock });   // Segment insertion
 
     await handler(event);
 
@@ -165,19 +230,40 @@ describe('Transcript Processor', () => {
     mockPlatformClient.getAIContent.mockResolvedValue({ summary: 'Test summary' });
 
     // Mock existing account
-    mockSupabaseClient.single
-      .mockResolvedValueOnce({ data: { id: 'account-123' }, error: null });
+    const accountSingleMock = jest.fn().mockResolvedValue({ 
+      data: { id: 'account-123' }, 
+      error: null 
+    });
+    const accountEqMock = jest.fn(() => ({ single: accountSingleMock }));
+    const accountSelectMock = jest.fn(() => ({ eq: accountEqMock }));
 
-    // Mock duplicate key error, then successful update
-    mockSupabaseClient.insert
-      .mockResolvedValueOnce({ data: null, error: { code: '23505', message: 'Duplicate key' } });
-    
-    mockSupabaseClient.update.mockResolvedValue({ data: null, error: null });
-    mockSupabaseClient.delete.mockResolvedValue({ data: null, error: null });
+    // Mock duplicate key error on transcript insert
+    const transcriptSingleMock = jest.fn().mockResolvedValue({ 
+      data: null, 
+      error: { code: '23505', message: 'Duplicate key' } 
+    });
+    const transcriptSelectMock = jest.fn(() => ({ single: transcriptSingleMock }));
+    const transcriptInsertMock = jest.fn(() => ({ select: transcriptSelectMock }));
+
+    // Mock successful update
+    const updateEqMock = jest.fn().mockResolvedValue({ data: null, error: null });
+    const updateMock = jest.fn(() => ({ eq: updateEqMock }));
+
+    // Mock segment operations
+    const segmentDeleteEqMock = jest.fn().mockResolvedValue({ error: null });
+    const segmentDeleteMock = jest.fn(() => ({ eq: segmentDeleteEqMock }));
+    const segmentInsertMock = jest.fn().mockResolvedValue({ data: null, error: null });
+
+    mockSupabaseClient.from
+      .mockReturnValueOnce({ select: accountSelectMock })    // Account lookup
+      .mockReturnValueOnce({ insert: transcriptInsertMock }) // Transcript insert (fails)
+      .mockReturnValueOnce({ update: updateMock })           // Transcript update (succeeds)
+      .mockReturnValueOnce({ delete: segmentDeleteMock })    // Segment deletion
+      .mockReturnValueOnce({ insert: segmentInsertMock });   // Segment insertion
 
     await handler(event);
 
-    expect(mockSupabaseClient.update).toHaveBeenCalled();
+    expect(updateMock).toHaveBeenCalled();
   });
 
   it('should handle AI content retrieval failure gracefully', async () => {
@@ -195,12 +281,32 @@ describe('Transcript Processor', () => {
     mockPlatformClient.getTranscript.mockResolvedValue(mockTranscript);
     mockPlatformClient.getAIContent.mockRejectedValue(new Error('AI content not available'));
 
-    mockSupabaseClient.single
-      .mockResolvedValueOnce({ data: { id: 'account-123' }, error: null })
-      .mockResolvedValueOnce({ data: { id: 'transcript-123' }, error: null });
+    // Mock existing account
+    const accountSingleMock = jest.fn().mockResolvedValue({ 
+      data: { id: 'account-123' }, 
+      error: null 
+    });
+    const accountEqMock = jest.fn(() => ({ single: accountSingleMock }));
+    const accountSelectMock = jest.fn(() => ({ eq: accountEqMock }));
 
-    mockSupabaseClient.insert.mockResolvedValue({ data: null, error: null });
-    mockSupabaseClient.delete.mockResolvedValue({ data: null, error: null });
+    // Mock transcript insertion
+    const transcriptSingleMock = jest.fn().mockResolvedValue({ 
+      data: { id: 'transcript-123' }, 
+      error: null 
+    });
+    const transcriptSelectMock = jest.fn(() => ({ single: transcriptSingleMock }));
+    const transcriptInsertMock = jest.fn(() => ({ select: transcriptSelectMock }));
+
+    // Mock segment operations
+    const segmentDeleteEqMock = jest.fn().mockResolvedValue({ error: null });
+    const segmentDeleteMock = jest.fn(() => ({ eq: segmentDeleteEqMock }));
+    const segmentInsertMock = jest.fn().mockResolvedValue({ data: null, error: null });
+
+    mockSupabaseClient.from
+      .mockReturnValueOnce({ select: accountSelectMock })    // Account lookup
+      .mockReturnValueOnce({ insert: transcriptInsertMock }) // Transcript insertion
+      .mockReturnValueOnce({ delete: segmentDeleteMock })    // Segment deletion
+      .mockReturnValueOnce({ insert: segmentInsertMock });   // Segment insertion
 
     await handler(event);
 
@@ -233,14 +339,34 @@ describe('Transcript Processor', () => {
     mockPlatformClient.getTranscript.mockResolvedValueOnce(mockTranscript);
     mockPlatformClient.getAIContent.mockResolvedValueOnce({ summary: 'Test summary' });
 
-    // Second message fails
+    // Second message fails at getTranscript
     mockPlatformClient.authenticate.mockResolvedValueOnce(undefined);
     mockPlatformClient.getTranscript.mockRejectedValueOnce(new Error('Transcript not found'));
 
-    mockSupabaseClient.single
-      .mockResolvedValue({ data: { id: 'account-123' }, error: null });
-    mockSupabaseClient.insert.mockResolvedValue({ data: null, error: null });
-    mockSupabaseClient.delete.mockResolvedValue({ data: null, error: null });
+    // Mock Supabase for first message (successful)
+    const accountSingleMock = jest.fn().mockResolvedValue({ 
+      data: { id: 'account-123' }, 
+      error: null 
+    });
+    const accountEqMock = jest.fn(() => ({ single: accountSingleMock }));
+    const accountSelectMock = jest.fn(() => ({ eq: accountEqMock }));
+
+    const transcriptSingleMock = jest.fn().mockResolvedValue({ 
+      data: { id: 'transcript-123' }, 
+      error: null 
+    });
+    const transcriptSelectMock = jest.fn(() => ({ single: transcriptSingleMock }));
+    const transcriptInsertMock = jest.fn(() => ({ select: transcriptSelectMock }));
+
+    const segmentDeleteEqMock = jest.fn().mockResolvedValue({ error: null });
+    const segmentDeleteMock = jest.fn(() => ({ eq: segmentDeleteEqMock }));
+    const segmentInsertMock = jest.fn().mockResolvedValue({ data: null, error: null });
+
+    mockSupabaseClient.from
+      .mockReturnValueOnce({ select: accountSelectMock })    // Account lookup
+      .mockReturnValueOnce({ insert: transcriptInsertMock }) // Transcript insertion
+      .mockReturnValueOnce({ delete: segmentDeleteMock })    // Segment deletion
+      .mockReturnValueOnce({ insert: segmentInsertMock });   // Segment insertion
 
     await handler(event);
 
@@ -273,13 +399,38 @@ describe('Transcript Processor', () => {
     mockPlatformClient.getTranscript.mockResolvedValue(transcriptWithInternalDomains);
     mockPlatformClient.getAIContent.mockResolvedValue({ summary: 'Test summary' });
 
-    mockSupabaseClient.single
-      .mockResolvedValueOnce({ data: null, error: null }) // No existing account for company.com
-      .mockResolvedValueOnce({ data: { id: 'company-account' }, error: null }) // New account created
-      .mockResolvedValueOnce({ data: { id: 'transcript-123' }, error: null });
+    // Mock account lookup for company.com (doesn't exist)
+    const accountSingleMock = jest.fn().mockResolvedValue({ data: null, error: null });
+    const accountEqMock = jest.fn(() => ({ single: accountSingleMock }));
+    const accountSelectMock = jest.fn(() => ({ eq: accountEqMock }));
 
-    mockSupabaseClient.insert.mockResolvedValue({ data: null, error: null });
-    mockSupabaseClient.delete.mockResolvedValue({ data: null, error: null });
+    // Mock account creation
+    const accountCreateSingleMock = jest.fn().mockResolvedValue({ 
+      data: { id: 'company-account' }, 
+      error: null 
+    });
+    const accountCreateSelectMock = jest.fn(() => ({ single: accountCreateSingleMock }));
+    const accountCreateInsertMock = jest.fn(() => ({ select: accountCreateSelectMock }));
+
+    // Mock transcript insertion
+    const transcriptSingleMock = jest.fn().mockResolvedValue({ 
+      data: { id: 'transcript-123' }, 
+      error: null 
+    });
+    const transcriptSelectMock = jest.fn(() => ({ single: transcriptSingleMock }));
+    const transcriptInsertMock = jest.fn(() => ({ select: transcriptSelectMock }));
+
+    // Mock segment operations
+    const segmentDeleteEqMock = jest.fn().mockResolvedValue({ error: null });
+    const segmentDeleteMock = jest.fn(() => ({ eq: segmentDeleteEqMock }));
+    const segmentInsertMock = jest.fn().mockResolvedValue({ data: null, error: null });
+
+    mockSupabaseClient.from
+      .mockReturnValueOnce({ select: accountSelectMock })      // Account lookup
+      .mockReturnValueOnce({ insert: accountCreateInsertMock }) // Account creation
+      .mockReturnValueOnce({ insert: transcriptInsertMock })   // Transcript insertion
+      .mockReturnValueOnce({ delete: segmentDeleteMock })      // Segment deletion
+      .mockReturnValueOnce({ insert: segmentInsertMock });     // Segment insertion
 
     await handler(event);
 

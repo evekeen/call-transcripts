@@ -1,20 +1,21 @@
-import { handler } from './gongWebhook';
 import { APIGatewayProxyEvent } from 'aws-lambda';
-import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
 
-jest.mock('@aws-sdk/client-sqs');
+const mockSend = jest.fn();
+jest.mock('@aws-sdk/client-sqs', () => ({
+  SQSClient: jest.fn(() => ({
+    send: mockSend
+  })),
+  SendMessageCommand: jest.fn((input) => ({ input }))
+}));
 
-const mockSQSClient = {
-  send: jest.fn()
-};
-
-(SQSClient as jest.MockedClass<typeof SQSClient>).mockImplementation(() => mockSQSClient as any);
+import { handler } from './gongWebhook';
 
 describe('Gong Webhook Handler', () => {
   const originalEnv = process.env;
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockSend.mockClear();
     process.env = {
       ...originalEnv,
       TRANSCRIPT_QUEUE_URL: 'https://sqs.us-east-1.amazonaws.com/123456789/transcript-queue',
@@ -87,7 +88,7 @@ describe('Gong Webhook Handler', () => {
 
     expect(result.statusCode).toBe(200);
     expect(JSON.parse(result.body)).toEqual({ message: 'Event type ignored' });
-    expect(mockSQSClient.send).not.toHaveBeenCalled();
+    expect(mockSend).not.toHaveBeenCalled();
   });
 
   it('should process valid webhook payload', async () => {
@@ -104,7 +105,7 @@ describe('Gong Webhook Handler', () => {
     };
 
     const event = createMockEvent('POST', webhookPayload);
-    mockSQSClient.send.mockResolvedValue({});
+    mockSend.mockResolvedValue({});
 
     const result = await handler(event);
 
@@ -114,12 +115,12 @@ describe('Gong Webhook Handler', () => {
       callId: 'call-123'
     });
 
-    expect(mockSQSClient.send).toHaveBeenCalledWith(
-      expect.any(SendMessageCommand)
+    expect(mockSend).toHaveBeenCalledWith(
+      expect.objectContaining({ input: expect.any(Object) })
     );
 
-    const sentCommand = mockSQSClient.send.mock.calls[0][0] as SendMessageCommand;
-    const messageBody = JSON.parse(sentCommand.input.MessageBody!);
+    const sentCommand = mockSend.mock.calls[0][0];
+    const messageBody = JSON.parse(sentCommand.input.MessageBody);
     
     expect(messageBody).toMatchObject({
       platform: 'gong',
@@ -146,12 +147,12 @@ describe('Gong Webhook Handler', () => {
       'x-gong-signature': `sha256=${signature}`
     });
     
-    mockSQSClient.send.mockResolvedValue({});
+    mockSend.mockResolvedValue({});
 
     const result = await handler(event);
 
     expect(result.statusCode).toBe(200);
-    expect(mockSQSClient.send).toHaveBeenCalled();
+    expect(mockSend).toHaveBeenCalled();
   });
 
   it('should return 401 for invalid signature', async () => {
@@ -171,7 +172,7 @@ describe('Gong Webhook Handler', () => {
 
     expect(result.statusCode).toBe(401);
     expect(JSON.parse(result.body)).toEqual({ error: 'Invalid signature' });
-    expect(mockSQSClient.send).not.toHaveBeenCalled();
+    expect(mockSend).not.toHaveBeenCalled();
   });
 
   it('should return 500 when SQS fails', async () => {
@@ -182,7 +183,7 @@ describe('Gong Webhook Handler', () => {
     };
 
     const event = createMockEvent('POST', webhookPayload);
-    mockSQSClient.send.mockRejectedValue(new Error('SQS error'));
+    mockSend.mockRejectedValue(new Error('SQS error'));
 
     const result = await handler(event);
 

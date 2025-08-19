@@ -100,7 +100,37 @@ export class TranscriptRepository {
       .single();
 
     if (error) {
-      throw new Error(`Failed to create transcript: ${error.message}`);
+      if (error.code === '23505') { // Duplicate key
+        console.log(`Transcript ${transcript.callId} already exists, updating...`);
+        
+        const { data: updatedData, error: updateError } = await this.supabase
+          .from('transcripts')
+          .update({
+            full_text: transcript.fullText,
+            ai_content: aiContent || {},
+            updated_at: new Date().toISOString(),
+            raw_metadata: {
+              attendees: transcript.metadata.attendees,
+              originalData: transcript.metadata
+            }
+          })
+          .eq('id', transcript.callId)
+          .select()
+          .single();
+
+        if (updateError) {
+          throw new Error(`Failed to update transcript: ${updateError.message}`);
+        }
+
+        // Store segments
+        if (transcript.segments.length > 0) {
+          await this.createTranscriptSegments(transcript.callId, transcript.segments);
+        }
+
+        return updatedData;
+      } else {
+        throw new Error(`Failed to create transcript: ${error.message}`);
+      }
     }
 
     // Store segments
