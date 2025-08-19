@@ -328,8 +328,8 @@
                 <input type="date" id="startDate" />
                 <input type="date" id="endDate" />
                 <input type="number" id="limit" placeholder="Limit (default: 50)" min="1" max="500" />
-                <button onclick="loadCalls()">Load Live Calls</button>
-                <button onclick="loadStoredTranscripts()">View Stored Transcripts</button>
+                <button onclick="loadStoredTranscripts()" style="background: #28a745; border-color: #28a745;" onmouseover="this.style.background='#1e7e34'" onmouseout="this.style.background='#28a745'">📚 View Stored Transcripts</button>
+                <button onclick="loadCalls()">🔴 Load Live Calls</button>
                 <button onclick="syncCalls()" style="background: #28a745; border-color: #28a745;" onmouseover="this.style.background='#1e7e34'" onmouseout="this.style.background='#28a745'">Sync New Calls to Database</button>
             </div>
         </div>
@@ -369,8 +369,8 @@
             document.getElementById('endDate').value = endDate.toISOString().split('T')[0];
             document.getElementById('startDate').value = startDate.toISOString().split('T')[0];
             
-            // Auto-load calls on page load
-            loadCalls();
+            // Auto-load stored transcripts on page load (default view)
+            loadStoredTranscripts();
         });
 
         async function loadCalls() {
@@ -379,6 +379,9 @@
             const platformName = platform.charAt(0).toUpperCase() + platform.slice(1);
             
             contentDiv.innerHTML = `
+                <div style="background: #fff3cd; border: 1px solid #ffeaa7; color: #856404; padding: 10px; margin-bottom: 20px; border-radius: 6px;">
+                    <strong>🔴 LIVE DATA:</strong> Loading real-time calls from ${platformName} API...
+                </div>
                 <div class="loading">
                     <div class="spinner"></div>
                     Loading calls from ${platformName}...
@@ -398,7 +401,7 @@
                 const calls = await response.json();
 
                 if (response.ok) {
-                    renderCalls(calls, platform);
+                    renderCalls(calls, platform, true); // true = live data
                 } else {
                     throw new Error(calls.error || `Failed to load ${platformName} calls`);
                 }
@@ -415,6 +418,9 @@
         async function loadStoredTranscripts() {
             const contentDiv = document.getElementById('content');
             contentDiv.innerHTML = `
+                <div style="background: #d1ecf1; border: 1px solid #bee5eb; color: #0c5460; padding: 10px; margin-bottom: 20px; border-radius: 6px;">
+                    <strong>📚 STORED DATA:</strong> Loading transcripts from database...
+                </div>
                 <div class="loading">
                     <div class="spinner"></div>
                     Loading stored transcripts...
@@ -448,14 +454,18 @@
             }
         }
 
-        function renderCalls(calls, platform) {
+        function renderCalls(calls, platform, isLive = false) {
             const contentDiv = document.getElementById('content');
             
+            const statusIndicator = isLive 
+                ? '<div style="background: #fff3cd; border: 1px solid #ffeaa7; color: #856404; padding: 10px; margin-bottom: 20px; border-radius: 6px;"><strong>🔴 LIVE DATA:</strong> Real-time calls from ' + platform.charAt(0).toUpperCase() + platform.slice(1) + ' API</div>'
+                : '<div style="background: #d1ecf1; border: 1px solid #bee5eb; color: #0c5460; padding: 10px; margin-bottom: 20px; border-radius: 6px;"><strong>📚 STORED DATA:</strong> Transcripts from database</div>';
+            
             if (!calls || calls.length === 0) {
-                contentDiv.innerHTML = `
+                contentDiv.innerHTML = statusIndicator + `
                     <div class="no-calls">
                         <h3>No calls found</h3>
-                        <p>Try adjusting your date range or check your Gong connection.</p>
+                        <p>Try adjusting your date range or check your connection.</p>
                     </div>
                 `;
                 return;
@@ -484,7 +494,7 @@
                 </div>
             `).join('');
 
-            contentDiv.innerHTML = `
+            contentDiv.innerHTML = statusIndicator + `
                 <div class="calls-grid">
                     ${callsHTML}
                 </div>
@@ -494,11 +504,13 @@
         function renderStoredTranscripts(transcripts) {
             const contentDiv = document.getElementById('content');
             
+            const statusIndicator = '<div style="background: #d1ecf1; border: 1px solid #bee5eb; color: #0c5460; padding: 10px; margin-bottom: 20px; border-radius: 6px;"><strong>📚 STORED DATA:</strong> Transcripts from database</div>';
+            
             if (!transcripts || transcripts.length === 0) {
-                contentDiv.innerHTML = `
+                contentDiv.innerHTML = statusIndicator + `
                     <div class="no-calls">
                         <h3>No stored transcripts found</h3>
-                        <p>Try processing some calls first or check your date range.</p>
+                        <p>Try syncing some calls first or check your date range.</p>
                     </div>
                 `;
                 return;
@@ -522,7 +534,7 @@
                 </div>
             `).join('');
 
-            contentDiv.innerHTML = `
+            contentDiv.innerHTML = statusIndicator + `
                 <div class="calls-grid">
                     ${transcriptsHTML}
                 </div>
