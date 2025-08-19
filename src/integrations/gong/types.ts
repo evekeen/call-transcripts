@@ -31,12 +31,17 @@ export interface GongCall {
 }
 
 export interface GongParticipant {
+  id: string;
+  speakerId: string;
   emailAddress: string;
-  displayName?: string;
+  name?: string;
+  userId?: string;
+  affiliation?: 'Internal' | 'External';
+  phoneNumber?: string;
+  methods?: string[];
+  displayName?: string; // Legacy field for backward compatibility
   title?: string;
   companyName?: string;
-  userId?: string;
-  speakerId?: string;
   context?: {
     active: boolean;
     talkTime: number;
@@ -90,6 +95,40 @@ export interface GongTranscriptRequest {
     callIds: string[]; // Array of call IDs to retrieve transcripts for
     // Optional additional filters could be added here per API docs
   };
+}
+
+// Gong API extensive call request structure for POST /v2/calls/extensive
+export interface GongExtensiveCallRequest {
+  filter: {
+    callIds: string[]; // Array of call IDs to retrieve extensive data for
+  };
+  contentSelector: {
+    exposedFields: {
+      parties?: string[]; // Fields to include for parties: ["id", "speakerId", "emailAddress", "name", "userId", "affiliation", "phoneNumber", "methods"]
+      content?: string[]; // Additional content fields if needed
+    };
+  };
+}
+
+// Gong API extensive call response structure
+export interface GongExtensiveCallResponse {
+  requestId: string;
+  records: {
+    totalRecords: number;
+    currentPageSize: number;
+    currentPageNumber: number;
+    cursor?: string;
+  };
+  calls: GongExtensiveCall[];
+}
+
+export interface GongExtensiveCall {
+  metaData: {
+    id: string;
+    // Other metadata fields would be here
+  };
+  parties?: GongParticipant[]; // Only included if requested in contentSelector
+  // Other extensive call data would go here
 }
 
 // Actual Gong API response structure for /v2/calls endpoint

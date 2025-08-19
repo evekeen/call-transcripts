@@ -16,6 +16,8 @@ import {
   GongTranscript,
   GongTranscriptResponse,
   GongTranscriptRequest,
+  GongExtensiveCallRequest,
+  GongExtensiveCallResponse,
   GongAIContent,
   GongErrorResponse,
   GongParticipant
@@ -263,17 +265,48 @@ export class GongClient implements PlatformAdapter {
     }
   }
 
+  /**
+   * Get participants for a call including speaker IDs, names, and emails
+   */
+  async getParticipants(callId: string): Promise<GongParticipant[]> {
+    await this.ensureAuthenticated();
+
+    try {
+      const extensiveResponse = await this.apiClient.post<GongExtensiveCallResponse>('/calls/extensive', {
+        "filter": {
+          "callIds": [callId]
+        },
+        "contentSelector": {
+          "exposedFields": {
+            "parties": true
+          }
+        }
+      });
+
+      const callData = extensiveResponse.data.calls.find(call => call.metaData.id === callId);
+      return callData?.parties || [];
+    } catch (error: any) {
+      if (error.response?.data?.errors) {
+        console.warn(`Failed to get participants for call ${callId}:`, error.response.data.errors);
+      } else {
+        console.warn(`Failed to get participants for call ${callId}:`, error.message);
+      }
+      return []; // Return empty array if participants can't be fetched
+    }
+  }
+
   async getTranscript(callId: string): Promise<Transcript> {
     await this.ensureAuthenticated();
 
     try {
-      const [callResponse, transcriptResponse] = await Promise.all([
+      const [callResponse, transcriptResponse, participants] = await Promise.all([
         this.apiClient.get<{ call: GongCall }>(`/calls/${callId}`),
         this.apiClient.post<GongTranscriptResponse>('/calls/transcript', {
           filter: {
             callIds: [callId]
           }
-        } as GongTranscriptRequest)
+        } as GongTranscriptRequest),
+        this.getParticipants(callId)
       ]);
 
       const call = callResponse.data.call;
@@ -286,14 +319,21 @@ export class GongClient implements PlatformAdapter {
         throw new Error(`No transcript found for call ID: ${callId}`);
       }
 
+      // Create a map of speakerId to participant info for quick lookup
+      const speakerMap = new Map<string, GongParticipant>();
+      participants.forEach(participant => {
+        speakerMap.set(participant.speakerId, participant);
+      });
+
       const segments: TranscriptSegment[] = [];
       let fullText = '';
 
       for (const segment of callTranscript.transcript) {
         for (const sentence of segment.sentences) {
+          const participant = speakerMap.get(segment.speakerId);
           const transcriptSegment: TranscriptSegment = {
-            speaker: segment.speakerId, // Gong uses speakerId to identify speakers
-            speakerEmail: undefined, // Would need /v2/calls/extensive to map speakerId to email
+            speaker: participant?.name || participant?.emailAddress || segment.speakerId, // Use name, fallback to email, then speakerId
+            speakerEmail: participant?.emailAddress,
             text: sentence.text,
             startTime: sentence.start, // Time in milliseconds
             endTime: sentence.end     // Time in milliseconds
@@ -307,7 +347,7 @@ export class GongClient implements PlatformAdapter {
         callId,
         segments,
         fullText: fullText.trim(),
-        metadata: this.mapGongCallToMetadata(call)
+        metadata: this.mapGongCallToMetadata(call, participants)
       };
     } catch (error) {
       this.handleApiError(error);
@@ -334,10 +374,14 @@ export class GongClient implements PlatformAdapter {
     console.log('Action: POST to', webhookUrl);
   }
 
-  private mapGongCallToMetadata(call: GongCall): CallMetadata {
-    // Note: Basic /v2/calls endpoint doesn't include participants
-    // Participants would need to be fetched separately from /v2/calls/{id}/extensive
-    const attendees: Attendee[] = [];
+  private mapGongCallToMetadata(call: GongCall, participants?: GongParticipant[]): CallMetadata {
+    // Map participants to attendees if available
+    const attendees: Attendee[] = participants?.map(participant => ({
+      email: participant.emailAddress,
+      name: participant.name || participant.displayName,
+      role: participant.affiliation === 'Internal' ? 'host' : 'participant',
+      company: participant.companyName
+    })) || [];
     
     // Convert ISO timestamp strings to JavaScript Date objects
     const startTime = new Date(call.started);
@@ -349,7 +393,7 @@ export class GongClient implements PlatformAdapter {
       startTime,
       endTime,
       duration: call.duration,
-      attendees, // Empty for basic endpoint - would need extensive endpoint for participants
+      attendees,
       recordingUrl: call.url,
       platform: 'gong'
     };
