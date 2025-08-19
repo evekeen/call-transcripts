@@ -61,14 +61,6 @@ export class GongClient implements PlatformAdapter {
       }
     }
 
-    // Debug loaded credentials
-    console.log('Loaded credentials:', {
-      hasClientId: !!this.credentials.clientId,
-      hasClientSecret: !!this.credentials.clientSecret,
-      hasApiKey: !!this.credentials.apiKey,
-      clientIdValue: this.credentials.clientId,
-      clientSecretLength: this.credentials.clientSecret?.length
-    });
 
     // Support both OAuth (clientId + clientSecret) and Basic Auth (apiKey + apiSecret)
     if (this.credentials.apiKey && this.credentials.clientSecret && !this.credentials.clientId) {
@@ -246,16 +238,11 @@ export class GongClient implements PlatformAdapter {
           }
         });
 
-        console.log('Gong API response:', {
-          status: response.status,
-          dataKeys: Object.keys(response.data),
-          callsType: typeof response.data.calls,
-          callsLength: Array.isArray(response.data.calls) ? response.data.calls.length : 'not array',
-          firstCallKeys: response.data.calls?.[0] ? Object.keys(response.data.calls[0]) : 'no calls'
-        });
-
         if (!response.data.calls || !Array.isArray(response.data.calls)) {
-          console.log('Unexpected response structure:', response.data);
+          console.log('Unexpected Gong API response structure:', {
+            dataKeys: Object.keys(response.data),
+            callsType: typeof response.data.calls
+          });
           break;
         }
 
@@ -336,22 +323,36 @@ export class GongClient implements PlatformAdapter {
     console.log('Action: POST to', webhookUrl);
   }
 
-  private mapGongCallToMetadata(call: GongCall): CallMetadata {
-    const attendees: Attendee[] = call.participants.map(p => ({
-      email: p.emailAddress,
-      name: p.displayName,
-      role: p.context?.active ? 'host' : 'participant',
-      company: p.companyName
-    }));
+  private mapGongCallToMetadata(call: any): CallMetadata {
+    // Handle the actual Gong API response structure
+    const attendees: Attendee[] = [];
+    
+    // If participants data is available, map it
+    if (call.participants && Array.isArray(call.participants)) {
+      call.participants.forEach((p: any) => {
+        attendees.push({
+          email: p.emailAddress || p.email,
+          name: p.displayName || p.name,
+          role: p.context?.active ? 'host' : 'participant',
+          company: p.companyName || p.company
+        });
+      });
+    }
+
+    // Map the actual API response fields
+    const startTime = call.startTime || call.started || call.scheduled;
+    const endTime = call.endTime || (startTime && call.duration ? 
+      new Date(new Date(startTime).getTime() + call.duration * 1000).toISOString() : 
+      startTime);
 
     return {
       id: call.id,
-      title: call.title,
-      startTime: new Date(call.startTime),
-      endTime: new Date(call.endTime),
-      duration: call.duration,
+      title: call.title || 'Untitled Call',
+      startTime: startTime ? new Date(startTime) : new Date(),
+      endTime: endTime ? new Date(endTime) : new Date(),
+      duration: call.duration || 0,
       attendees,
-      recordingUrl: call.recordingUrl,
+      recordingUrl: call.recordingUrl || call.url,
       platform: 'gong'
     };
   }
