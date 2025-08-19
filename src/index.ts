@@ -1,10 +1,9 @@
 import { validateConfig } from './config';
 import { ApiServer } from './api/server';
-import { Scheduler } from './scheduler';
 
 async function main() {
   try {
-    console.log('🚀 Starting Fireflies Sales Intelligence Tool...');
+    console.log('🚀 Starting Multi-Platform Sales Intelligence Tool...');
     
     // Validate configuration
     validateConfig();
@@ -13,10 +12,6 @@ async function main() {
     // Start API server
     const server = new ApiServer();
     server.start();
-
-    // Start scheduler for automatic syncing
-    const scheduler = new Scheduler();
-    scheduler.start();
 
     // Handle graceful shutdown
     process.on('SIGINT', () => {

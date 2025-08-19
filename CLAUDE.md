@@ -155,3 +155,11 @@ Start with `npm run web` and access at `http://localhost:3000`
 
 ## Git and Commits
 - Never mention Claude Code in a commit message
+
+## Working with code
+
+- Always run compilation and linter (e.g. npm run build, npm run lint) and fix errors and warnings
+- Always run unit tests and make sure there are no new bugs. Fix something if API changed.
+- Add new tests for new features
+- Mock external API's
+- Intead of mocking Supabase, use local temporary DB like sqlite for tests. Make sure to clean the DB before and after tests

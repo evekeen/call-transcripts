@@ -10,7 +10,7 @@ REGION="us-east-1"
 RUNTIME="nodejs18.x"
 HANDLER="dist/lambdas/periodicGongSync.handler"
 TIMEOUT="900"
-MEMORY="512"
+MEMORY="128"
 SCHEDULE_NAME="gong-sync-schedule"
 RULE_NAME="gong-sync-rule"
 

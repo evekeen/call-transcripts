@@ -65,17 +65,7 @@ export interface FirefliesGraphQLResponse<T> {
 }
 
 export interface TranscriptsQueryResponse {
-  transcripts: {
-    edges: Array<{
-      node: FirefliesTranscript;
-      cursor: string;
-    }>;
-    pageInfo: {
-      hasNextPage: boolean;
-      endCursor: string;
-    };
-    totalCount: number;
-  };
+  transcripts: FirefliesTranscript[];
 }
 
 export interface TranscriptQueryResponse {

@@ -106,64 +106,61 @@ export class FirefliesClient implements PlatformAdapter {
     const limit = options.limit || 100;
 
     const query = `
-      query ListTranscripts($from: DateTime!, $to: DateTime!, $limit: Int!, $cursor: String) {
+      query ListTranscripts($fromDate: DateTime!, $toDate: DateTime!, $limit: Int!, $skip: Int) {
         transcripts(
-          from_date: $from
-          to_date: $to
+          fromDate: $fromDate
+          toDate: $toDate
           limit: $limit
-          cursor: $cursor
+          skip: $skip
         ) {
-          edges {
-            node {
-              id
-              title
-              date
-              duration
-              meeting_attendees {
-                displayName
-                email
-                name
-              }
-              audio_url
-              video_url
-            }
-            cursor
+          id
+          title
+          date
+          duration
+          meeting_attendees {
+            displayName
+            email
+            name
           }
-          pageInfo {
-            hasNextPage
-            endCursor
-          }
-          totalCount
+          audio_url
+          video_url
         }
       }
     `;
 
     try {
-      while (hasNextPage && calls.length < limit) {
-        const variables: any = {
-          from: options.startDate.toISOString(),
-          to: options.endDate.toISOString(),
-          limit: Math.min(50, limit - calls.length), // Fireflies recommends 50 per request
-          cursor
+      let skip = 0;
+      const batchSize = Math.min(50, limit); // Fireflies max 50 per request
+      
+      while (calls.length < limit) {
+        const variables = {
+          fromDate: options.startDate.toISOString(),
+          toDate: options.endDate.toISOString(),
+          limit: Math.min(batchSize, limit - calls.length),
+          skip
         };
 
-        const response: TranscriptsQueryResponse = await this.graphqlClient.request<TranscriptsQueryResponse>(query, variables);
+        const response: { transcripts: FirefliesTranscript[] } = await this.graphqlClient.request(query, variables);
         
-        if (response.transcripts?.edges) {
-          const mappedCalls = response.transcripts.edges.map((edge: any) => 
-            this.mapFirefliesTranscriptToMetadata(edge.node)
-          );
-          calls.push(...mappedCalls);
-          
-          hasNextPage = response.transcripts.pageInfo.hasNextPage;
-          cursor = response.transcripts.pageInfo.endCursor;
-        } else {
+        if (!response.transcripts || response.transcripts.length === 0) {
           break;
         }
 
+        const mappedCalls = response.transcripts.map(transcript => 
+          this.mapFirefliesTranscriptToMetadata(transcript)
+        );
+        calls.push(...mappedCalls);
+        
+        // If we got fewer results than requested, we've reached the end
+        if (response.transcripts.length < variables.limit) {
+          break;
+        }
+        
+        skip += response.transcripts.length;
+
         // Be respectful of rate limits (50 req/day for free tier)
-        if (hasNextPage) {
-          await this.delay(1200); // ~50 requests per day = 1 per ~30 min, but batch them
+        if (calls.length < limit) {
+          await this.delay(1200); // Space out requests
         }
       }
 
