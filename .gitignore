@@ -6,3 +6,6 @@ tasks/prd-fireflies-sales-intelligence.html
 tasks/proposal-email-steve-v2.md
 coverage/
 .env
+dist/
+lambda-deployment.zip
+output.json
