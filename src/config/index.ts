@@ -13,6 +13,9 @@ export const config = {
     url: process.env.SUPABASE_URL || '',
     serviceKey: process.env.SUPABASE_SERVICE_KEY || '',
   },
+  database: {
+    path: process.env.DATABASE_PATH || './database.sqlite'
+  },
   platforms: {
     gong: {
       enabled: process.env.GONG_ENABLED === 'true',
@@ -24,7 +27,9 @@ export const config = {
     },
     fireflies: {
       enabled: process.env.FIREFLIES_ENABLED === 'true',
-      secretName: 'fireflies-api-credentials'
+      secretName: 'fireflies-api-credentials',
+      maxRequestsPerDay: parseInt(process.env.FIREFLIES_MAX_REQUESTS || '1000'),
+      apiKey: process.env.FIREFLIES_API_KEY || ''
     },
     fathom: {
       enabled: process.env.FATHOM_ENABLED === 'true',
@@ -34,6 +39,12 @@ export const config = {
       enabled: process.env.OTTER_ENABLED === 'true',
       secretName: 'otter-api-credentials'
     }
+  },
+  fireflies: {
+    maxRequestsPerDay: parseInt(process.env.FIREFLIES_MAX_REQUESTS || '1000'),
+    apiKey: process.env.FIREFLIES_API_KEY || '',
+    apiUrl: process.env.FIREFLIES_API_URL || 'https://api.fireflies.ai',
+    pollIntervalMinutes: parseInt(process.env.FIREFLIES_POLL_INTERVAL || '15')
   },
   llm: {
     provider: process.env.LLM_PROVIDER || 'bedrock', // bedrock or openai
