@@ -15,7 +15,8 @@ import {
   GongListCallsResponse,
   GongTranscript,
   GongAIContent,
-  GongErrorResponse
+  GongErrorResponse,
+  GongParticipant
 } from './types';
 
 export class GongClient implements PlatformAdapter {
@@ -173,7 +174,7 @@ export class GongClient implements PlatformAdapter {
       
       this.apiClient.defaults.headers.common['Authorization'] = `Bearer ${this.accessToken}`;
       console.log('Gong OAuth token obtained successfully');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to obtain Gong access token:', error);
       if (error.response) {
         console.error('Response status:', error.response.status);
@@ -238,18 +239,16 @@ export class GongClient implements PlatformAdapter {
           }
         });
 
+
         if (!response.data.calls || !Array.isArray(response.data.calls)) {
-          console.log('Unexpected Gong API response structure:', {
-            dataKeys: Object.keys(response.data),
-            callsType: typeof response.data.calls
-          });
+          console.log('Unexpected Gong API response structure');
           break;
         }
 
         const mappedCalls = response.data.calls.map(call => this.mapGongCallToMetadata(call));
         calls.push(...mappedCalls);
         
-        cursor = response.data.cursor;
+        cursor = response.data.records.cursor;
         
         if (calls.length >= limit) {
           break;
@@ -282,7 +281,7 @@ export class GongClient implements PlatformAdapter {
         for (const sentence of segment.sentences) {
           const transcriptSegment: TranscriptSegment = {
             speaker: segment.speakerName || segment.speakerId,
-            speakerEmail: this.findSpeakerEmail(segment.speakerId, call.participants),
+            speakerEmail: undefined, // Participants not available in basic call data
             text: sentence.text,
             startTime: sentence.start,
             endTime: sentence.end
@@ -323,41 +322,28 @@ export class GongClient implements PlatformAdapter {
     console.log('Action: POST to', webhookUrl);
   }
 
-  private mapGongCallToMetadata(call: any): CallMetadata {
-    // Handle the actual Gong API response structure
+  private mapGongCallToMetadata(call: GongCall): CallMetadata {
+    // Note: Basic /v2/calls endpoint doesn't include participants
+    // Participants would need to be fetched separately from /v2/calls/{id}/extensive
     const attendees: Attendee[] = [];
     
-    // If participants data is available, map it
-    if (call.participants && Array.isArray(call.participants)) {
-      call.participants.forEach((p: any) => {
-        attendees.push({
-          email: p.emailAddress || p.email,
-          name: p.displayName || p.name,
-          role: p.context?.active ? 'host' : 'participant',
-          company: p.companyName || p.company
-        });
-      });
-    }
-
-    // Map the actual API response fields
-    const startTime = call.startTime || call.started || call.scheduled;
-    const endTime = call.endTime || (startTime && call.duration ? 
-      new Date(new Date(startTime).getTime() + call.duration * 1000).toISOString() : 
-      startTime);
+    // Calculate end time from start time + duration
+    const startTime = new Date(call.started);
+    const endTime = new Date(startTime.getTime() + call.duration * 1000);
 
     return {
       id: call.id,
-      title: call.title || 'Untitled Call',
-      startTime: startTime ? new Date(startTime) : new Date(),
-      endTime: endTime ? new Date(endTime) : new Date(),
-      duration: call.duration || 0,
-      attendees,
-      recordingUrl: call.recordingUrl || call.url,
+      title: call.title,
+      startTime,
+      endTime,
+      duration: call.duration,
+      attendees, // Empty for basic endpoint - would need extensive endpoint for participants
+      recordingUrl: call.url,
       platform: 'gong'
     };
   }
 
-  private findSpeakerEmail(speakerId: string, participants: any[]): string | undefined {
+  private findSpeakerEmail(speakerId: string, participants: GongParticipant[]): string | undefined {
     const participant = participants.find(p => p.speakerId === speakerId);
     return participant?.emailAddress;
   }

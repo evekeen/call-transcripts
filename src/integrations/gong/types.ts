@@ -6,19 +6,28 @@ export interface GongAuthResponse {
   scope?: string;
 }
 
+// Actual Gong API response structure based on /v2/calls endpoint
 export interface GongCall {
   id: string;
+  url: string;
   title: string;
-  startTime: string;
-  endTime: string;
-  duration: number;
-  participants: GongParticipant[];
-  recordingUrl?: string;
-  direction: 'inbound' | 'outbound' | 'internal';
-  purpose?: string;
-  meetingUrl?: string;
-  language?: string;
-  workspaceId?: string;
+  scheduled: string; // ISO datetime string
+  started: string; // ISO datetime string  
+  duration: number; // seconds
+  primaryUserId: string;
+  direction: 'Inbound' | 'Outbound' | 'Internal' | 'Conference';
+  system: string; // e.g., "Google Meet", "Zoom", etc.
+  scope: 'Internal' | 'External';
+  media: 'Audio' | 'Video';
+  language: string; // e.g., "eng"
+  workspaceId: string;
+  sdrDisposition: string | null;
+  clientUniqueId: string | null;
+  customData: any | null;
+  purpose: string | null;
+  meetingUrl: string | null;
+  isPrivate: boolean;
+  calendarEventId: string | null;
 }
 
 export interface GongParticipant {
@@ -60,12 +69,16 @@ export interface GongListCallsRequest {
   limit?: number;
 }
 
+// Actual Gong API response structure for /v2/calls endpoint
 export interface GongListCallsResponse {
+  requestId: string;
+  records: {
+    totalRecords: number;
+    currentPageSize: number;
+    currentPageNumber: number;
+    cursor?: string; // Only present if there are more pages
+  };
   calls: GongCall[];
-  totalRecords: number;
-  currentPageSize: number;
-  currentPageNumber: number;
-  cursor?: string;
 }
 
 export interface GongAIContent {
