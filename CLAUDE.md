@@ -151,3 +151,7 @@ Start with `npm run web` and access at `http://localhost:3000`
 - **Rate Limits**: Each platform client implements platform-specific rate limiting
 - **Full-Text Search**: Supabase uses PostgreSQL `tsvector` for transcript search
 - **Account Association**: Domain-based rules automatically group calls by client company
+
+
+## Git and Commits
+- Never mention Claude Code in a commit message
