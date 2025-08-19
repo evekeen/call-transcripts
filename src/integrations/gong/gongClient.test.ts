@@ -56,8 +56,7 @@ describe('GongClient', () => {
       mockSecretsManager.on(GetSecretValueCommand).resolves({
         SecretString: JSON.stringify({
           clientId: 'secret-client-id',
-          clientSecret: 'secret-client-secret',
-          apiKey: 'secret-api-key'
+          clientSecret: 'secret-client-secret'
         })
       });
 

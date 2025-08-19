@@ -71,8 +71,7 @@ export class GongClient implements PlatformAdapter {
         const secrets = JSON.parse(response.SecretString);
         this.credentials = {
           clientId: secrets.clientId,
-          clientSecret: secrets.clientSecret,
-          apiKey: secrets.apiKey
+          clientSecret: secrets.clientSecret
         };
       } else {
         throw new Error('No secret string found');
