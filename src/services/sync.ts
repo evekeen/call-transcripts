@@ -18,7 +18,6 @@ export class SyncService {
   async syncAllTranscripts(): Promise<void> {
     console.log('Starting full transcript sync...');
     
-    const today = new Date();
     const apiUsageToday = await this.db.getApiUsageToday();
     
     if (apiUsageToday >= config.fireflies.maxRequestsPerDay) {

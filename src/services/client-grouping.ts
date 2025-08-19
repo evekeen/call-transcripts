@@ -1,5 +1,5 @@
 import { Database } from '../database';
-import { FirefliesTranscript, ClientAccount, GroupingRule } from '../types';
+import { FirefliesTranscript, GroupingRule } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 
 export class ClientGroupingService {

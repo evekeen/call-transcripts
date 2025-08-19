@@ -166,7 +166,7 @@ async function storeTranscript(
   message: TranscriptMessage
 ): Promise<void> {
   // Store main transcript record
-  const { data: transcriptRecord, error: transcriptError } = await getSupabaseClient()
+  const { error: transcriptError } = await getSupabaseClient()
     .from('transcripts')
     .insert({
       id: transcript.callId,

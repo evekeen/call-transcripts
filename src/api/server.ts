@@ -103,7 +103,17 @@ export class ApiServer {
       try {
         const { accountIds, platforms, startDate, endDate, query, limit = 50, offset = 0 } = req.query;
         
-        const searchOptions: any = {
+        interface SearchOptions {
+          limit: number;
+          offset: number;
+          accountIds?: string[];
+          platforms?: string[];
+          startDate?: Date;
+          endDate?: Date;
+          query?: string;
+        }
+        
+        const searchOptions: SearchOptions = {
           limit: parseInt(limit as string),
           offset: parseInt(offset as string)
         };
@@ -149,9 +159,10 @@ export class ApiServer {
         const segments = await this.transcriptRepo.getTranscriptSegments(id);
         
         // If no segments stored, fetch from live API  
-        let transformedSegments = [];
+        let transformedSegments: any[] = [];
         if (segments.length === 0 && transcript.platform === 'gong') {
           try {
+            // eslint-disable-next-line no-console
             console.log(`No segments found for transcript ${id}, fetching from live Gong API`);
             const client = PlatformFactory.createClient('gong', 'gong-api-credentials');
             await client.authenticate();
@@ -204,6 +215,7 @@ export class ApiServer {
           return res.status(400).json({ error: 'Invalid platform. Supported platforms: gong, clari, fireflies, fathom, otter' });
         }
 
+        // eslint-disable-next-line no-console
         console.log(`Starting sync for ${platform} platform - last ${days} days, limit ${limit}`);
 
         // Create platform client
@@ -221,14 +233,23 @@ export class ApiServer {
           limit
         });
 
+        // eslint-disable-next-line no-console
         console.log(`Found ${calls.length} calls from ${platform}`);
 
         // Process each call and store transcript
+        interface SyncResult {
+          callId: string;
+          status: 'success' | 'error' | 'skipped';
+          title?: string;
+          error?: string;
+          reason?: string;
+        }
+        
         const results = {
           processed: 0,
           errors: 0,
           skipped: 0,
-          details: [] as any[]
+          details: [] as SyncResult[]
         };
 
         for (const call of calls) {
@@ -253,13 +274,15 @@ export class ApiServer {
             results.processed++;
             results.details.push({ callId: call.id, status: 'success', title: call.title });
             
-          } catch (error: any) {
-            console.error(`Failed to process call ${call.id}:`, error.message);
+          } catch (error: unknown) {
+            // eslint-disable-next-line no-console
+            console.error(`Failed to process call ${call.id}:`, error instanceof Error ? error.message : 'Unknown error');
             results.errors++;
-            results.details.push({ callId: call.id, status: 'error', error: error.message });
+            results.details.push({ callId: call.id, status: 'error', error: error instanceof Error ? error.message : 'Unknown error' });
           }
         }
 
+        // eslint-disable-next-line no-console
         console.log(`Sync completed: ${results.processed} processed, ${results.skipped} skipped, ${results.errors} errors`);
 
         res.json({
@@ -274,11 +297,11 @@ export class ApiServer {
           details: results.details
         });
 
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error(`Sync failed for ${req.params.platform}:`, error);
         res.status(500).json({ 
           error: 'Sync failed', 
-          message: error.message 
+          message: error instanceof Error ? error.message : 'Unknown error'
         });
       }
     });
@@ -293,10 +316,15 @@ export class ApiServer {
   public start(): void {
     const port = config.server.port;
     this.app.listen(port, () => {
+      // eslint-disable-next-line no-console
       console.log(`🎯 Multi-Platform Sales Intelligence API running on port ${port}`);
+      // eslint-disable-next-line no-console
       console.log(`📊 Health check: http://localhost:${port}/health`);
+      // eslint-disable-next-line no-console
       console.log(`🌐 Web interface: http://localhost:${port}`);
+      // eslint-disable-next-line no-console
       console.log(`📞 Platform APIs: http://localhost:${port}/api/{platform}/calls`);
+      // eslint-disable-next-line no-console
       console.log(`🔗 Supported platforms: gong, clari, fireflies, fathom, otter`);
     });
   }

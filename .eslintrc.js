@@ -13,6 +13,7 @@ module.exports = {
     node: true,
     jest: true,
   },
+  ignorePatterns: ['**/*.test.ts', '**/*.spec.ts'],
   rules: {
     '@typescript-eslint/explicit-function-return-type': 'off',
     '@typescript-eslint/no-explicit-any': 'warn',

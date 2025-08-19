@@ -249,7 +249,7 @@ export class AccountAssociationService {
       .map(attendee => attendee.company)
       .filter(Boolean);
 
-    suggestions.push(...companies);
+    suggestions.push(...companies.filter((company): company is string => Boolean(company)));
 
     // Extract potential company names from title
     const titleWords = transcript.metadata.title
@@ -279,7 +279,7 @@ export class AccountAssociationService {
     transcriptId: string,
     newAccountId: string,
     reason: string,
-    userId?: string
+    _userId?: string
   ): Promise<void> {
     // Get current transcript
     const transcript = await this.repository.getTranscriptById(transcriptId);
@@ -295,6 +295,7 @@ export class AccountAssociationService {
     });
 
     // Log the association change (would implement audit log here)
+    // eslint-disable-next-line no-console
     console.log(`Transcript ${transcriptId} reassociated from ${oldAccountId} to ${newAccountId}. Reason: ${reason}`);
   }
 
@@ -314,7 +315,12 @@ export class AccountAssociationService {
 
     // This would implement ML-based suggestions in a real system
     // For now, return domain-based suggestions
-    const suggestions = [];
+    const suggestions: Array<{
+      accountId: string;
+      accountName: string;
+      confidence: number;
+      reason: string;
+    }> = [];
     
     return {
       currentAccountId: transcript.account_id,
