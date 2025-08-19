@@ -145,7 +145,49 @@ export class ApiServer {
           return res.status(404).json({ error: 'Transcript not found' });
         }
         
-        res.json(transcript);
+        // Fetch segments to match the format of live transcripts
+        const segments = await this.transcriptRepo.getTranscriptSegments(id);
+        
+        // If no segments stored, fetch from live API  
+        let transformedSegments = [];
+        if (segments.length === 0 && transcript.platform === 'gong') {
+          try {
+            console.log(`No segments found for transcript ${id}, fetching from live Gong API`);
+            const client = PlatformFactory.createClient('gong', 'gong-api-credentials');
+            await client.authenticate();
+            const liveTranscript = await client.getTranscript(id);
+            transformedSegments = liveTranscript.segments;
+          } catch (error) {
+            console.warn(`Failed to fetch live segments for ${id}:`, error);
+          }
+        } else {
+          // Transform segments to match the live transcript format
+          transformedSegments = segments.map(segment => ({
+            speaker: segment.speaker,
+            speakerEmail: segment.speaker_email,
+            text: segment.text,
+            startTime: segment.start_time,
+            endTime: segment.end_time,
+            confidence: segment.confidence
+          }));
+        }
+        
+        // Return in the same format as live transcripts
+        res.json({
+          callId: transcript.id,
+          fullText: transcript.full_text,
+          segments: transformedSegments,
+          metadata: {
+            id: transcript.id,
+            title: transcript.title,
+            startTime: transcript.start_time,
+            endTime: transcript.end_time,
+            duration: transcript.duration,
+            platform: transcript.platform,
+            recordingUrl: transcript.recording_url,
+            attendees: transcript.raw_metadata?.attendees || []
+          }
+        });
       } catch (error) {
         console.error('Get transcript error:', error);
         res.status(500).json({ error: 'Failed to get transcript' });
@@ -192,8 +234,7 @@ export class ApiServer {
         for (const call of calls) {
           try {
             // Check if transcript already exists
-            const existingResult = await this.transcriptRepo.getTranscriptById(call.id);
-            const existing = existingResult?.data;
+            const existing = await this.transcriptRepo.getTranscriptById(call.id);
             if (existing) {
               results.skipped++;
               results.details.push({ callId: call.id, status: 'skipped', reason: 'already_exists' });

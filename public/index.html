@@ -583,11 +583,7 @@
                 const transcript = await response.json();
                 
                 if (response.ok) {
-                    bodyEl.innerHTML = `
-                        <div class="transcript-segment">
-                            <div class="segment-text">${escapeHtml(transcript.full_text)}</div>
-                        </div>
-                    `;
+                    renderTranscript(transcript);
                 } else {
                     throw new Error(transcript.error || 'Failed to load stored transcript');
                 }
